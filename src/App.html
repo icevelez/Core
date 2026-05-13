@@ -1,0 +1,10 @@
+<h1>{{ $.name }}</h1>
+<p>Birth Date: {{ `${$.birth_date.toISOString()}` }}</p>
+<button on:click="() => $.counter.set($.counter()+1)">Count: {{ $.counter() }}</button>
+<hr>
+<h1>{{ $.message() }}</h1>
+<input type="text" bind:value="$.message"/>
+
+<Comp :name="$.name">
+    <h1>This is from parent {{ $.message() }}</h1>
+</Comp>
