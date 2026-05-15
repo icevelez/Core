@@ -230,7 +230,6 @@ function create_container(object) {
 
             return child;
         },
-
         set(target, key, value) {
             const current = target.current[key];
             const dep = target.deps[key];

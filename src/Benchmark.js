@@ -87,15 +87,7 @@ export default component({
         setTimeout(() => {
             this.runLots();
             console.log("running run lots...");
-            // setTimeout(() => {
-            //     this.data()[0] = newItem();
-            //     console.log("running mod");
-            // }, 5000)
         }, 1000)
-
-        effect(() => {
-            console.log(this.selected())
-        })
     }
 
     data = signal([]);

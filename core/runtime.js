@@ -35,7 +35,7 @@ const CORE = {
     set_text: function (node, text) {
         if (node.__cacheText === text) return;
         node.__cacheText = text;
-        scheuleDOMUpdate(node);
+        node.nodeValue = text;
     },
     /**
      * @param {Node} node
@@ -44,11 +44,20 @@ const CORE = {
      */
     set_attr: function (node, value, property) {
         if (!node.__cacheAttr) node.__cacheAttr = {};
+
         if (node.__cacheAttr[property] === value) return;
         node.__cacheAttr[property] = value;
-        if (!node.__setAttr) node.__setAttr = [];
-        node.__setAttr.push([property, value]);
-        scheuleDOMUpdate(node);
+
+        if (property === "value") {
+            node.nodeValue = value;
+        } else if (property === "checked") {
+            node.checked = value === "true";
+            node.setAttribute(property, value === "true" ? "" : value);
+        } else if (value === "false" || !value) {
+            node.removeAttribute(property);
+        } else {
+            node.setAttribute(property, value === "true" ? "" : value);
+        }
     },
     /**
      * @param {string} event_name
@@ -88,7 +97,10 @@ const CORE = {
      * @param {boolean} include_start_and_end_node
      */
     remove_nodes_between: function (startNode, endNode, include_start_and_end_node = false) {
-        if (startNode.nextSibling === endNode) return;
+        if (startNode === endNode) {
+            startNode.parentNode.removeChild(startNode);
+            return;
+        }
 
         let node = startNode.nextSibling;
         while (node && node !== endNode) {
@@ -101,26 +113,6 @@ const CORE = {
             startNode.parentNode.removeChild(startNode);
             endNode.parentNode.removeChild(endNode);
         }
-    },
-    /**
-     * @param {Node} startNode
-     * @param {Node} endNode
-     * @param {DocumentFragment} fragment
-     */
-    move_nodes_between: function (startNode, endNode, fragment) {
-        if (startNode.nextSibling === endNode) return;
-
-        let node = startNode.nextSibling;
-
-        fragment.append(startNode);
-
-        while (node && node !== endNode) {
-            const next = node.nextSibling;
-            fragment.append(node);
-            node = next;
-        }
-
-        fragment.append(endNode);
     },
     if: (anchor, $, id, condition_fns) => {
         const fragment = document.createDocumentFragment();
@@ -271,41 +263,6 @@ const CORE = {
     }
 }
 
-/** @type {Set<Node>} */
-const scheduled_nodes = new Set();
-let is_DOM_schedule_running = false;
-
-function scheuleDOMUpdate(node) {
-    if (scheduled_nodes.has(node)) return;
-    scheduled_nodes.add(node);
-
-    if (is_DOM_schedule_running) return;
-    is_DOM_schedule_running = true;
-
-    queueMicrotask(() => {
-        for (const node of scheduled_nodes) {
-            if (node.__cacheText && node.__cacheText !== node.textContent) node.textContent = node.__cacheText;
-            if (node.__setAttr) {
-                for (const [property, value] of node.__setAttr) {
-                    if (property === "value") {
-                        node.value = value;
-                    } else if (property === "checked") {
-                        node.checked = value === "true";
-                        node.setAttribute(property, value === "true" ? "" : value);
-                    } else if (value === "false" || !value) {
-                        node.removeAttribute(property);
-                    } else {
-                        node.setAttribute(property, value === "true" ? "" : value);
-                    }
-                }
-                node.__setAttr.length = 0;
-            }
-        }
-        scheduled_nodes.clear();
-        is_DOM_schedule_running = false;
-    })
-}
-
 /**
  * @param {WeakMap<Node, Set<Function>>} map
  * @param {Event} event
@@ -362,7 +319,7 @@ function processNode(node, node_index = [], processes = { children: [], events: 
         const component_tag = node.dataset.componentTag || null;
         if (is_core_component_node && !component) throw "no default component found";
         if (is_component_node && (!component_id || !component_tag)) throw "component not found";
-        const anchor = new Text("");
+        const anchor = new Comment("component-block");
         node.parentNode.replaceChild(anchor, node);
         processes.children.push(node_index);
         processes.component_blocks.push({ child_index: processes.children.length - 1, component, component_id, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
@@ -371,7 +328,7 @@ function processNode(node, node_index = [], processes = { children: [], events: 
 
     const isBlockNode = (node) => Boolean(node.dataset && node.dataset.block && node.dataset.blockId)
     if (isBlockNode(node)) {
-        const anchor = new Text("");
+        const anchor = new Comment(node.dataset.block + "-block");
         node.parentNode.replaceChild(anchor, node);
         processes.children.push(node_index);
         processes.blocks.push({ child_index: processes.children.length - 1, type: node.dataset.block, id: node.dataset.blockId });
@@ -461,9 +418,6 @@ export function compileTemplate(fragment) {
     }
 
     remove_whitespace_nodes(fragment)
-
-    fragment.insertBefore(new Text(""), fragment.firstChild);
-    fragment.append(new Text(""));
 
     let dispose_fn_i = -1;
 
