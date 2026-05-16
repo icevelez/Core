@@ -160,4 +160,8 @@ export default component({
         this.data.set(tmp);
     };
 
+    onMount = () => {
+        console.log(document.body);
+        debugger;
+    }
 });

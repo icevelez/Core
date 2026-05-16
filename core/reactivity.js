@@ -47,17 +47,12 @@ function trigger_all_nested(container) {
 }
 
 /**
- * @param {Set<Function>[]} effect_fn
+ * @param {{ deps : Set<Function>, children : Set<Function> }[]} effect_fn
  */
-function cleanup_deps(effect_fn) {
+function dispose_deps(effect_fn) {
     for (const dep of effect_fn.deps) dep.delete(effect_fn);
     effect_fn.deps.length = 0;
-}
 
-/**
- * @param {Set<Function>[]} effect_fn
- */
-function cleanup_children(effect_fn) {
     for (const fn of effect_fn.children) fn();
     effect_fn.children.length = 0;
 }
@@ -87,8 +82,7 @@ export function effect(fn, options = { track_inner_effect : true }) {
         if (!active) return;
 
         dispose();
-        cleanup_deps(wrapped);
-        if (options.track_inner_effect) cleanup_children(wrapped);
+        dispose_deps(wrapped);
 
         effect_stack.push(wrapped);
         current_effect = wrapped;
@@ -102,9 +96,11 @@ export function effect(fn, options = { track_inner_effect : true }) {
         } finally {
             effect_stack.pop();
             current_effect = effect_stack[effect_stack.length - 1] || null;
-            if (current_effect) current_effect.children.push(wrapped.dispose);
+            if (current_effect?.track_inner_effect) current_effect.children.push(wrapped.dispose);
         }
     };
+
+    wrapped.track_inner_effect = options.track_inner_effect;
 
     /** @type {Set<Function>[]} */
     wrapped.deps = [];
@@ -115,8 +111,7 @@ export function effect(fn, options = { track_inner_effect : true }) {
         if (!active) return;
         active = false;
         dispose();
-        cleanup_deps(wrapped);
-        if (options.track_inner_effect) cleanup_children(wrapped);
+        dispose_deps(wrapped);
     };
 
     wrapped();
