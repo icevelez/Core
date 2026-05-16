@@ -1,6 +1,10 @@
 <button on:click="() => $.show_benchmark.set(!$.show_benchmark())">Click Me</button>
 {{#if $.show_benchmark() }}
-    <Benchmark/>
+    {{#await import("/src/Benchmark.js")}}
+        <h1>Loading Benchmark</h1>
+    {{:then Benchmark}}
+        <Core:component default="Benchmark"/>
+    {{/await}}
 {{:else}}
     <h1>{{ $.name }}</h1>
     <p>Birth Date: {{ `${$.birth_date.toISOString()}` }}</p>

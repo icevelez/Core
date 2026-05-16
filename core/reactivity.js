@@ -178,6 +178,7 @@ export function signal(initial_value) {
 }
 
 const container_cache = new WeakMap();
+const array_mutation = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
 
 const IS_PROXY = Symbol("is_proxy");
 const CONTAINER = Symbol("container");
@@ -215,7 +216,7 @@ function create_container(object) {
                 // Hack to trigger update when doing .splice
                 return typeof value === "function" && Array.isArray(target.current) ? ((v, ...args) => {
                     const result = target.current[key]((v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].current : v, ...args);
-                    if (key === "splice") trigger_all_nested(target);
+                    if (array_mutation.has(key)) trigger_all_nested(target);
                     return result;
                 }) : value;
             }
