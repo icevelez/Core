@@ -13,6 +13,7 @@ export default component({
     }
 }, class {
 
+    show_benchmark = signal(false);
     counter = signal(0);
     birth_date = new Date();
     name = "John";
