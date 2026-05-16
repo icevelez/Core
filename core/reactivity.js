@@ -217,7 +217,12 @@ function create_container(object) {
             const value = target.current[key];
 
             if (!is_wrappable(value)) {
-                return value;
+                // Hack to trigger update when doing .splice
+                return typeof value === "function" && Array.isArray(target.current) ? ((v, ...args) => {
+                    const result = target.current[key]((v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].current : v, ...args);
+                    if (key === "splice") trigger_all_nested(target);
+                    return result;
+                }) : value;
             }
 
             let child = target.children[key];
