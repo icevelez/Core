@@ -66,7 +66,7 @@ export function effect(fn, options = { track_inner_effect : true }) {
     if (typeof fn !== "function") throw "Effect callback is not a function";
 
     let dispose_fn = null;
-    let active = true;
+    let active = true;      // flag to prevent effect re-run if already dispose
 
     const dispose = () => {
         if (typeof dispose_fn !== "function") return
@@ -178,7 +178,9 @@ export function signal(initial_value) {
 }
 
 const container_cache = new WeakMap();
-const array_mutation = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
+const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
+const map_mutation_keys = new Set(["set", "delete", "clear"]);
+const map_access_keys = new Set(["get", "has", "size"]);
 
 const IS_PROXY = Symbol("is_proxy");
 const CONTAINER = Symbol("container");
@@ -203,23 +205,47 @@ function create_container(object) {
             if (key === IS_PROXY) return true;
             if (key === CONTAINER) return target;
 
-            let dep = target.deps[key];
-            if (!dep) {
-                dep = target.deps[key] = new Set();
-            }
+            // Support for Map/Set, comment out because runtime doesn't support Map/Set yet
+            // if (target instanceof Map || target instanceof Set) {
+            //     if (map_access_keys.has(key)) return (...args) => {
+            //         const get_key = args[0];
+            //         let dep = target.deps[get_key];
+            //         if (!dep) dep = target.deps[get_key] = new Set();
+            //         track(dep)
+            //         return target.current[key](...args);
+            //     }
+            //     if (map_mutation_keys.has(key)) return (...args) => {
+            //         const result = target.current[key](...args.map((v) => (v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].current : v));
+            //         if (key !== "clear" && !(target instanceof Set && key === "set")) {
+            //             const get_key = args[0];
+            //             let dep = target.deps[get_key];
+            //             trigger(dep)
+            //         } else {
+            //             trigger_all_nested(container)
+            //         }
+            //         return result;
+            //     }
+            //     return target.current[key];
+            // }
 
-            track(dep);
+            let dep = target.deps[key];
+            if (!dep) dep = target.deps[key] = new Set();
 
             const value = target.current[key];
 
             if (!is_wrappable(value)) {
-                // Hack to trigger update when doing .splice
-                return typeof value === "function" && Array.isArray(target.current) ? ((v, ...args) => {
-                    const result = target.current[key]((v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].current : v, ...args);
-                    if (array_mutation.has(key)) trigger_all_nested(target);
-                    return result;
-                }) : value;
+                if (typeof value === "function")
+                    // Hack to trigger update when mutating an array
+                    return (Array.isArray(target.current)) ? ((...args) => {
+                        const result = target.current[key](...args.map((v) => (v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].current : v));
+                        if (array_mutation_keys.has(key)) trigger_all_nested(target);
+                        return result;
+                    }) : value;
+                track(dep);
+                return value;
             }
+
+            track(dep);
 
             let child = target.children[key];
 
