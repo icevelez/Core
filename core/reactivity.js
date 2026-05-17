@@ -35,6 +35,13 @@ function trigger(dep) {
     });
 }
 
+export const trigger_dep = (object, key) => {
+    const container = object[CONTAINER];
+    trigger(container.deps[key])
+    const child = container.children[key];
+    if (child && child[CONTAINER]) trigger_all_nested(child[CONTAINER]);
+};
+
 function trigger_all_nested(container) {
     // trigger own deps
     for (const key in container.deps) trigger(container.deps[key]);
@@ -151,7 +158,6 @@ export function signal(initial_value) {
 
         if (container) {
             container.current = new_value;
-            trigger_all_nested(container);
         } else {
             value = wrap_object(new_value);
             container = is_wrappable(value) ? value[CONTAINER] : null;
@@ -179,8 +185,8 @@ export function signal(initial_value) {
 
 const container_cache = new WeakMap();
 const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
-const map_mutation_keys = new Set(["set", "delete", "clear"]);
-const map_access_keys = new Set(["get", "has", "size"]);
+// const map_mutation_keys = new Set(["set", "delete", "clear"]);
+// const map_access_keys = new Set(["get", "has", "size"]);
 
 const IS_PROXY = Symbol("is_proxy");
 const CONTAINER = Symbol("container");

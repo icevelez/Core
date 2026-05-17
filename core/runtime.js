@@ -1,4 +1,4 @@
-import { effect, is_proxy, is_signal } from "./reactivity.js";
+import { effect, is_proxy, is_signal, trigger_dep } from "./reactivity.js";
 import { make_id } from "./helper-functions.js";
 
 /** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Processes */
@@ -20,6 +20,7 @@ const CORE = {
     ARR_STATE: Symbol(),
     effect,
     is_signal,
+    trigger_dep,
     version: "0.4.0",
     /** @type {DocumentFragment[]} */
     fragment_cache: [],
@@ -95,8 +96,7 @@ const CORE = {
      * @param {Node} startNode
      * @param {Node} endNode
      */
-    remove_nodes: function (startNode, endNode) {
-        const parentNode = startNode.parentNode;
+    remove_nodes: function (parentNode, startNode, endNode) {
         if (!parentNode) throw "parent node not found";
 
         if (startNode === endNode) {
@@ -160,6 +160,12 @@ const CORE = {
             $sub[CORE.ARR_STATE] = arr;
 
             if (!arr || arr?.length <= 0) {
+                if (existing_dispose_blocks.length > 0) {
+                    const anchor_parent_node = anchor.parentNode;
+                    anchor_parent_node.innerHTML = "";
+                    anchor_parent_node.append(anchor);
+                }
+
                 for (const dispose of existing_dispose_blocks) dispose();
                 existing_dispose_blocks.length = 0;
 
@@ -179,6 +185,7 @@ const CORE = {
             for (let i = 0; i < arr.length; i++) {
                 if (existing_dispose_blocks[i]) {
                     new_each_dispose_blocks.push(existing_dispose_blocks[i]);
+                    CORE.trigger_dep(arr, i);
                     continue;
                 }
 
@@ -520,7 +527,9 @@ ${
     return () => {
         for (const fn of dispose_fns) fn();
         dispose_fns.length = 0;
-        CORE.remove_nodes(node_start, node_end);
+        const parent_node = node_start.parentNode;
+        if (!parent_node) return;
+        CORE.remove_nodes(parent_node, node_start, node_end);
     }`);
 
     return func;
