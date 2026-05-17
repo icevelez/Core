@@ -50,6 +50,16 @@ function anonymous(anchor, $, slot_fn) {
         i: {
             get() { return this[CORE.IDX_STATE]; },
         }
+    }, { // SET & MAP
+        value: {
+            get() { return this[CORE.ARR_STATE].get(this[CORE.ARI_STATE]); },
+        },
+        key: {
+            get() { return this[CORE.ARI_STATE]; },
+        },
+        i: {
+            get() { return this[CORE.IDX_STATE]; },
+        }
     });
 
     dispose_fns[6] = CORE.each(child5, $, "each_id_2", (() => $.arr_2), {
@@ -60,6 +70,14 @@ function anonymous(anchor, $, slot_fn) {
         i: {
             get() { return this[IDX_STATE]; },
         }
+    }, { // SET
+        ar: {
+            get() { return this[CORE.ARR_STATE].get(this[CORE.ARI_STATE]); },
+        },
+    }, { // MAP
+        ar: {
+            get() { return [this[CORE.ARI_STATE], this[CORE.ARR_STATE].get(this[CORE.ARI_STATE])]; },
+        },
     });
 
     dispose_fns[7] = CORE.await(child6, $, "await_id", (() => new Promise((resolve) => setTimeout(() => resolve($.sample), 3000))));

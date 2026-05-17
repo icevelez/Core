@@ -119,11 +119,7 @@ Each discovered block receives a generated unique ID.
 Example:
 
 ```html
-{{#if $.logged_in}}
-    <div>
-        <template data-block="each" data-block-id="each-x8d2af"></template>
-    </div>
-{{/if}}
+<template data-block="each" data-block-id="each-x8d2af"></template>
 ```
 
 These placeholders act as mount anchors during runtime rendering.

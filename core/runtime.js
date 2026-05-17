@@ -94,24 +94,21 @@ const CORE = {
     /**
      * @param {Node} startNode
      * @param {Node} endNode
-     * @param {boolean} include_start_and_end_node
      */
-    remove_nodes_between: function (startNode, endNode, include_start_and_end_node = false) {
+    remove_nodes: function (startNode, endNode) {
+        const parentNode = startNode.parentNode;
+        if (!parentNode) throw "parent node not found";
+
         if (startNode === endNode) {
-            startNode.parentNode.removeChild(startNode);
+            parentNode.removeChild(startNode);
             return;
         }
 
-        let node = startNode.nextSibling;
-        while (node && node !== endNode) {
+        let node = startNode;
+        while (node && node !== endNode.nextSibling) {
             const next = node.nextSibling;
-            node.parentNode.removeChild(node);
+            parentNode.removeChild(node);
             node = next;
-        }
-
-        if (include_start_and_end_node) {
-            startNode.parentNode.removeChild(startNode);
-            endNode.parentNode.removeChild(endNode);
         }
     },
     if: (anchor, $, id, condition_fns) => {
@@ -432,8 +429,8 @@ export function compileTemplate(fragment) {
     const frag = CORE.fragment_cache[${fragment_cache_index}];
     const fragment = frag.cloneNode(true);
 
-    const boundaryNodeStart = fragment.firstChild;
-    const boundaryNodeEnd = fragment.lastChild;
+    const node_start = fragment.firstChild;
+    const node_end = fragment.lastChild;
 
     /** @type {Function[]} */
     const dispose_fns = [];
@@ -521,7 +518,7 @@ ${
     return () => {
         for (const fn of dispose_fns) fn();
         dispose_fns.length = 0;
-        CORE.remove_nodes_between(boundaryNodeStart, boundaryNodeEnd, true);
+        CORE.remove_nodes(node_start, node_end);
     }`);
 
     return func;
