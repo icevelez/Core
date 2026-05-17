@@ -40,18 +40,18 @@ count.set(1); // Console logs: "Count is: 1"
 
 ## 3. Effect
 
-Registers a reactive effect—a function that will automatically re-run when any of the State values it accesses change.
+A function that will automatically re-run when any of the signal values it accesses change.
 
 ### Function Signature
 ```js
 /**
  * @param {() => (void | () => void)} fn 
- * @param {{ track_inner_effect : boolean }} options a flag to skip tracking inner effects and resort to manual disposal. Used in creating the `if`, `each`, `await` functions
+ * @param {{ track_inner_effect : boolean }} options a flag to skip tracking inner effects and resort to manual disposal. Used in `if`, `each`, `await` render functions of Core
  */
 effect(fn, options)
 ```
 
-> Automatically tracks State access. Returns a cleanup function to manually stop the effect.
+> Automatically tracks signal access. Returns a cleanup function to manually stop the effect.
 
 ### Example
 ```js
@@ -65,4 +65,5 @@ const stop = effect(() => {
 
 message.set("World"); // Console logs: "Message is: World"
 stop();
+message.set("Another World"); // Effect callback no longer re-run
 ```

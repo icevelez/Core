@@ -6,10 +6,6 @@ The handlebar template engine supports dynamic rendering using a Handlebars-insp
 
 ## 1. Expression Interpolation
 
-Important Note: You access component variables by adding a `$.` prefix before the variable name in your template. 
-
-This is developer ergonomic trade-off as an experiment to build a better runtime compiler 
-
 ### ✅ Basic Usage
 ```html
 <h1>{{ "Hello World" }}</h1>

@@ -19,11 +19,15 @@ or using the live-server extension in VSCode
 
 Refer to the documentation folder
 
-## Known Bugs
+## Changelog
 
-- Memory leaks on `#each` rendering
+- Fixed Memory leak on `#each` rendering
 
-## Roadmap 
+## To Do
 
-- Adding the `context` API 
-- Adding the `onMount` and `onDestroy` component lifecycle
+```
+- Add Component Lifecycle (onMount and onDestroy)
+- Add Context API (setContext and getContext)
+- Add Iterable support for {{#each}} 
+- Add Reactivity support for Map/Set
+```

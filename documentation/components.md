@@ -22,6 +22,7 @@ export default component({
 ```
 
 ### ✅  Adding in data and logic to your component
+
 ```js
 import { component } from "/core/handlebar.js";
 import { createSignal } from "/core/reactivity.js";
@@ -38,6 +39,18 @@ export default component({
     constructor() {}
 });
 ```
+
+> Important Note: You are requires to add a `$.` prefix before the variable name in your template to access said variable. 
+> 
+> It is a developer ergonomic trade-off as the `$` represent the `Class` object on your component. 
+>
+> *"But Other frameworks don't require me to do any prefix, it knows the variable names automatically. How come Core v4.0.0 requires a prefix?"*
+>
+> Yes, other frameworks doesn't require a prefix because most frameworks like Svelte, Solid, Vue uses an **Abstract Syntax Tree** parser to parse through framework specific filetype like `.vue`, `.svelte`, and `.tsx` to collect each variable name at compile time and unfortunately, Core v4.0.0 doesn't have the luxury of adding an AST parser because it would increase the bundle size so I decided to use a prefix as a means of access the Class instance properties of your component 
+> 
+> *"But Vue 2 doesn't require any prefix and it has a no-build-step / CDN option"*
+>
+> Vue 2 uses the `with` statement to extend the scope of its render functions and while it is an attractive option to remove the need for a prefix, it is not recommended as its a deprecated feature and makes optimization impossible.
 
 ### ✅  Using the `load` function to load an html template
 ```js

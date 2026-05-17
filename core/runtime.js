@@ -398,7 +398,8 @@ function remove_whitespace_nodes(root) {
     while (child) {
         const next = child.nextSibling;
 
-        if (child.nodeType === Node.ELEMENT_NODE || child.nodeType === Node.DOCUMENT_FRAGMENT_NODE) remove_whitespace_nodes(child);
+        if (child.nodeName !== "PRE" && child.nodeName !== "TEXTAREA" && (child.nodeType === Node.ELEMENT_NODE || child.nodeType === Node.DOCUMENT_FRAGMENT_NODE))
+            remove_whitespace_nodes(child);
         else if (child.nodeType === Node.TEXT_NODE)
             if (child.textContent.trim() === "") child.remove();
             else child.textContent = child.textContent.trim().replaceAll("\n", "").replaceAll("\t", "")
