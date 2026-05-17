@@ -105,11 +105,13 @@ const CORE = {
         }
 
         let node = startNode;
-        while (node && node !== endNode.nextSibling) {
+        while (node && node !== endNode) {
             const next = node.nextSibling;
             parentNode.removeChild(node);
             node = next;
         }
+
+        parentNode.removeChild(endNode);
     },
     if: (anchor, $, id, condition_fns) => {
         const fragment = document.createDocumentFragment();
