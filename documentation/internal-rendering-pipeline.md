@@ -226,7 +226,7 @@ Stored as:
 ## Dynamic Attributes
 
 ```html
-<button disabled="{$.loading}">
+<button disabled="$.loading">
 ```
 
 Stored as:
