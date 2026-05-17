@@ -20,7 +20,7 @@ const CORE = {
     ARR_STATE: Symbol(),
     effect,
     is_signal,
-    version: "4.0.0-dev",
+    version: "0.4.0",
     /** @type {DocumentFragment[]} */
     fragment_cache: [],
     /** @type {Map<string, BlockCache[]>} */
