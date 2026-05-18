@@ -11,14 +11,10 @@ export default component({
     }
 }, class {
 
-    object = signal({
-        name: "John"
-    });
-
     show_benchmark = signal(false);
     counter = signal(0);
     birth_date = new Date();
-    name = "John";
+    name = signal("John");
     message = signal("This is a message");
 
     constructor() {}
