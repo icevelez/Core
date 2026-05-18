@@ -140,16 +140,14 @@ const CORE = {
         }, { track_inner_effect : false })
     },
     each: (anchor, $, id, arr_fn, descriptor) => {
-        let is_empty_block_mounted = false;
         let else_block_dispose_fn = null;
         let existing_dispose_blocks = [];
+        let curr_arr;
 
         const fragment = document.createDocumentFragment();
         const each_block = CORE.block_cache.get(id);
         const $sub = Object.create($);
         Object.defineProperties($sub, descriptor);
-
-        let curr_arr;
 
         return CORE.effect(() => {
             const arr = arr_fn();
@@ -169,16 +167,13 @@ const CORE = {
                 for (const dispose of existing_dispose_blocks) dispose();
                 existing_dispose_blocks.length = 0;
 
-                if (!each_block.else_fn || is_empty_block_mounted) return;
-                is_empty_block_mounted = true;
-
+                if (!each_block.else_fn || else_block_dispose_fn) return;
                 else_block_dispose_fn = each_block.else_fn(fragment, $);
                 anchor.before(fragment);
                 return;
             }
 
-            if (else_block_dispose_fn) else_block_dispose_fn();
-            is_empty_block_mounted = false;
+            if (else_block_dispose_fn) else_block_dispose_fn = else_block_dispose_fn() ? null : null;
 
             const new_each_dispose_blocks = [];
 
@@ -202,9 +197,7 @@ const CORE = {
 
             if (new_each_dispose_blocks.length > 0) anchor.before(fragment);
 
-            existing_dispose_blocks.length = 0;
             existing_dispose_blocks = new_each_dispose_blocks;
-
         }, { track_inner_effect : false })
     },
     await: function (anchor, $, id, await_fn) {

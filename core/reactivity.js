@@ -185,8 +185,8 @@ export function signal(initial_value) {
 
 const container_cache = new WeakMap();
 const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
-// const map_mutation_keys = new Set(["set", "delete", "clear"]);
-// const map_access_keys = new Set(["get", "has", "size"]);
+const map_mutation_keys = new Set(["set", "delete", "clear"]);
+const map_access_keys = new Set(["get", "has", "size"]);
 
 const IS_PROXY = Symbol("is_proxy");
 const CONTAINER = Symbol("container");
@@ -196,7 +196,7 @@ export function is_proxy(object) {
 }
 
 function is_wrappable(v) {
-    return (typeof v === "object" && v !== null && (Array.isArray(v) || Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null));
+    return v && typeof v === "object";
 }
 
 function create_container(object) {
@@ -211,28 +211,27 @@ function create_container(object) {
             if (key === IS_PROXY) return true;
             if (key === CONTAINER) return target;
 
-            // Support for Map/Set, comment out because runtime doesn't support Map/Set yet
-            // if (target instanceof Map || target instanceof Set) {
-            //     if (map_access_keys.has(key)) return (...args) => {
-            //         const get_key = args[0];
-            //         let dep = target.deps[get_key];
-            //         if (!dep) dep = target.deps[get_key] = new Set();
-            //         track(dep)
-            //         return target.current[key](...args);
-            //     }
-            //     if (map_mutation_keys.has(key)) return (...args) => {
-            //         const result = target.current[key](...args.map((v) => (v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].current : v));
-            //         if (key !== "clear" && !(target instanceof Set && key === "set")) {
-            //             const get_key = args[0];
-            //             let dep = target.deps[get_key];
-            //             trigger(dep)
-            //         } else {
-            //             trigger_all_nested(container)
-            //         }
-            //         return result;
-            //     }
-            //     return target.current[key];
-            // }
+            if (target.current instanceof Map || target.current instanceof Set) {
+                if (map_access_keys.has(key)) return (...args) => {
+                    const get_key = args[0];
+                    let dep = target.deps[get_key];
+                    if (!dep) dep = target.deps[get_key] = new Set();
+                    track(dep)
+                    return target.current[key](...args);
+                }
+                if (map_mutation_keys.has(key)) return (...args) => {
+                    const result = target.current[key](...args.map((v) => (v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].current : v));
+                    if (key !== "clear" && !(target instanceof Set && key === "set")) {
+                        const get_key = args[0];
+                        const dep = target.deps[get_key];
+                        if (dep) trigger(dep)
+                    } else {
+                        trigger_all_nested(container)
+                    }
+                    return result;
+                }
+                return target.current[key];
+            }
 
             let dep = target.deps[key];
             if (!dep) dep = target.deps[key] = new Set();
@@ -263,32 +262,22 @@ function create_container(object) {
 
             return child;
         },
-        set(target, key, value) {
+        set(target, key, new_value) {
             const current = target.current[key];
-            const dep = target.deps[key];
-
+            const value = (is_wrappable(new_value) && new_value[CONTAINER]) ? new_value[CONTAINER].current : new_value;
             if (current === value) return true;
 
-            if (is_wrappable(value) && value[CONTAINER]) {
-                target.current[key] = value[CONTAINER].current;
-                trigger(dep);
-                return true;
-            }
+            const dep = target.deps[key];
 
             target.current[key] = value;
-
-            trigger(dep);
+            if (dep) trigger(dep);
 
             // update nested child container
             const child = target.children[key];
-
-            if (child && is_wrappable(value)) {
-                child[CONTAINER].current = value;
-            }
+            if (child) child[CONTAINER].current = value;
 
             return true;
         },
-
         deleteProperty(target, key) {
             delete target.current[key];
 
@@ -303,7 +292,7 @@ function create_container(object) {
 }
 
 /**
- * @template {Object} T
+ * @template {any} T
  * @param {T} object
  * @returns {T}
  */

@@ -64,17 +64,15 @@ function _random(max) {
     return Math.round(Math.random() * 1000) % max;
 }
 
-function newItem() {
-    return {
-        id : rowId++,
-        label : `${adjectives[_random(adjectives.length)]} ${colours[_random(colours.length)]} ${nouns[_random(nouns.length)]}`,
-    }
+class Item {
+    id = rowId++;
+    label = `${adjectives[_random(adjectives.length)]} ${colours[_random(colours.length)]} ${nouns[_random(nouns.length)]}`;
 }
 
 function buildData(count = 1000) {
     const data = new Array(count);
     for (let i = 0; i < count; i++) {
-        data[i] = newItem();
+        data[i] = new Item();
     }
     return data;
 }
