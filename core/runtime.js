@@ -485,9 +485,9 @@ ${
     const component${i}_components = CORE.block_cache.get("${block.component_id}");
     const component${i}_slot_fn = CORE.block_cache.get("${block.slot_id}");
     const component${i}_props = Object.create(component${i}.props);
-
-    Object.defineProperties(component${i}_props, {\n\t\t${component.dynamic_props.map((prop) => `${prop.key}: { get() { return (${prop.expr || "undefined"}); } }`).join("\n\t\t")}\n\t});
-
+${
+    component.dynamic_props.length > 0 ? `\n\tObject.defineProperties(component${i}_props, {\n\t\t${component.dynamic_props.map((prop) => `${prop.key}: { get() { return (${prop.expr || "undefined"}); } }`).join("\n\t\t")}\n\t});\n\t` : ''
+}
     dispose_fns[${++dispose_fn_i}] = CORE.core_component(child${block.child_index}, ${block.component ? `$.${block.component}` : `component${i}_components.${block.component_tag}` }, component${i}_props, (anchor) => component${i}_slot_fn(anchor, $));`}).join("\n\n\t")
 }${
     (processes.use_directives.length > 0 ? '\n\n\t// USE DIRECTIVE\n\t' : '') +
@@ -530,7 +530,7 @@ export function processComponents(template, imported_component_id) {
 
         attrStr.replace(/([\w:@-]+)(?:\s*=\s*"([^"]*)")?/g, (_, key, value) => {
             if (key.startsWith(":")) {
-                dynamic_props.push({ key : key.slice(1, key.length), expr: value });
+                if (value) dynamic_props.push({ key : key.slice(1, key.length), expr: value });
             } else if (value) {
                 props[key] = value;
             }
