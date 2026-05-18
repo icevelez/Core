@@ -241,7 +241,7 @@ export default component({
 
             rows.push({
                 id: i,
-                name: "Row " + i,
+                name: "Row " + i + " " + Math.random().toString(16).substring(2,8),
                 value: i,
                 selected: false,
                 active: i % 2 === 0,

@@ -373,9 +373,7 @@ function processNode(node, node_index = [], processes = { children: [], events: 
     return processes;
 }
 
-function resolveChildNode(i, i_arr = []) {
-    return `.childNodes[${i}]` + ((i_arr.length <= 0) ? '' : resolveChildNode(i_arr.splice(0, 1), i_arr));
-}
+const resolveChildNode = (i, i_arr = []) => `.childNodes[${i}]` + ((i_arr.length <= 0) ? '' : resolveChildNode(i_arr.splice(0, 1), i_arr));
 
 /**
  * @param {string} key
@@ -457,10 +455,10 @@ ${
     processes.bindings.map((bind) => {
         return `dispose_fns[${++dispose_fn_i}] = CORE.delegate("${bind.event_name}", child${bind.child_index}, ((event) => CORE.is_signal(${bind.var}) ? ${bind.var}.set(event.target.${bind.property}) : (${bind.var} = event.target.${bind.property})))
     dispose_fns[${++dispose_fn_i}] = CORE.effect(() => (child${bind.child_index}.${bind.property} = CORE.is_signal(${bind.var}) ? ${bind.var}() : ${bind.var}));`
-    }).join("\n\t")
+    }).join("\n\n\t")
 }${
     (processes.blocks.length > 0 ? '\n\n\t// IF/EACH/AWAIT BLOCKS\n\t' : '') +
-    processes.blocks.map((block) => {
+    processes.blocks.sort((a,b) => a.type.localeCompare(b.type)).map((block) => {
         const block_data = CORE.block_cache.get(block.id);
         if (block.type === "if") {
             return `dispose_fns[${++dispose_fn_i}] = CORE.if(child${block.child_index}, $, "${block.id}", [\n\t\t${block_data.exprs.map((expr) => `(($) => ${expr})`).join(",\n\t\t")}\n\t]);`
@@ -491,12 +489,12 @@ ${
     dispose_fns[${++dispose_fn_i}] = CORE.effect(() => {
         for (const prop of component${i}_dynamic_props) component0.props[prop.key] = prop.fn($);
         return CORE.core_component(child${block.child_index}, ${block.component ? `$.${block.component}` : `component${i}_components.${block.component_tag}` }, component${i}.props, (anchor) => component${i}_slot_fn(anchor, $));
-    })`}).join("\n\t")
+    })`}).join("\n\n\t")
 }${
     (processes.use_directives.length > 0 ? '\n\n\t// USE DIRECTIVE\n\t' : '') +
     processes.use_directives.map((directive, i) => {
         return `dispose_fns[${++dispose_fn_i}] = $.${directive.func_name}(child${directive.child_index}, (${directive.expr}))`;
-    })
+    }).join("\n\t")
 }${
     processes.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <Core:slot/>
     if (slot_fn) {
@@ -516,6 +514,8 @@ ${
         if (!parent_node) return;
         CORE.remove_nodes(parent_node, node_start, node_end);
     }`);
+
+    console.log(func);
 
     return func;
 }
