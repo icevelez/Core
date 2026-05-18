@@ -35,8 +35,7 @@ const CORE = {
      */
     set_text: function (node, text) {
         if (node.__cacheText === text) return;
-        node.__cacheText = text;
-        node.nodeValue = text;
+        node.__cacheText = node.nodeValue = text;
     },
     /**
      * @param {Node} node
@@ -45,7 +44,6 @@ const CORE = {
      */
     set_attr: function (node, value, property) {
         if (!node.__cacheAttr) node.__cacheAttr = {};
-
         if (node.__cacheAttr[property] === value) return;
         node.__cacheAttr[property] = value;
 

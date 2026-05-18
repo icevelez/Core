@@ -191,13 +191,8 @@ const map_access_keys = new Set(["get", "has", "size"]);
 const IS_PROXY = Symbol("is_proxy");
 const CONTAINER = Symbol("container");
 
-export function is_proxy(object) {
-    return typeof object === "object" && object[IS_PROXY];
-}
-
-function is_wrappable(v) {
-    return v && typeof v === "object";
-}
+export const is_proxy = (object) => typeof object === "object" && object[IS_PROXY];
+const is_wrappable = (v) => v && typeof v === "object";
 
 function create_container(object) {
     const container = {
