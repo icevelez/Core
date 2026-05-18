@@ -35,13 +35,6 @@ function trigger(dep) {
     });
 }
 
-export const trigger_dep = (object, key) => {
-    const container = object[CONTAINER];
-    trigger(container.deps[key])
-    const child = container.children[key];
-    if (child && child[CONTAINER]) trigger_all_nested(child[CONTAINER]);
-};
-
 function trigger_all_nested(container) {
     // trigger own deps
     for (const key in container.deps) trigger(container.deps[key]);
@@ -93,7 +86,6 @@ export function effect(fn, options = { track_inner_effect : true }) {
 
         effect_stack.push(wrapped);
         current_effect = wrapped;
-        wrapped.deps = [];
 
         try {
             dispose_fn = fn();
@@ -128,12 +120,7 @@ export function effect(fn, options = { track_inner_effect : true }) {
 
 const signal_key = Symbol();
 
-/**
- * @param {any} signal
- */
-export function is_signal(signal) {
-    return Boolean(signal && typeof signal === "function" && signal[signal_key]);
-}
+export const is_signal = (signal) => Boolean(signal && typeof signal === "function" && signal[signal_key]);
 
 /**
  * @template {any} T
@@ -156,8 +143,9 @@ export function signal(initial_value) {
     read.set = (new_value) => {
         if (value === new_value) return;
 
-        if (container) {
-            container.current = new_value;
+        if (container && is_wrappable(new_value)) {
+            container.current = new_value[CONTAINER] ? new_value[CONTAINER].current : new_value;
+            trigger_all_nested(container);
         } else {
             value = wrap_object(new_value);
             container = is_wrappable(value) ? value[CONTAINER] : null;
@@ -192,7 +180,7 @@ const IS_PROXY = Symbol("is_proxy");
 const CONTAINER = Symbol("container");
 
 export const is_proxy = (object) => typeof object === "object" && object[IS_PROXY];
-const is_wrappable = (v) => v && typeof v === "object";
+const is_wrappable = (v) => v && typeof v === "object" && !(v instanceof Promise);
 
 function create_container(object) {
     const container = {

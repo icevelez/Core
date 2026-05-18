@@ -101,7 +101,8 @@ export default component({
 
     clear = () => {
         console.time('clear');
-        this.data.set([])
+        // this.data.set([])
+        this.data().length = 0;
         requestAnimationFrame(() => {
             console.timeEnd('clear');
         });
