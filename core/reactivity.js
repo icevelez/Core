@@ -257,19 +257,28 @@ function create_container(object) {
 
             return child;
         },
-        set(target, key, new_value) {
+        set(target, key, value) {
             const current = target.current[key];
-            const value = (is_wrappable(new_value) && new_value[CONTAINER]) ? new_value[CONTAINER].current : new_value;
-            if (current === value) return true;
-
             const dep = target.deps[key];
 
+            if (current === value) return true;
+
+            if (is_wrappable(value) && value[CONTAINER]) {
+                target.current[key] = value[CONTAINER].current;
+                trigger(dep);
+                return true;
+            }
+
             target.current[key] = value;
-            if (dep) trigger(dep);
+
+            trigger(dep);
 
             // update nested child container
             const child = target.children[key];
-            if (child) child[CONTAINER].current = value;
+
+            if (child && is_wrappable(value)) {
+                child[CONTAINER].current = value;
+            }
 
             return true;
         },
