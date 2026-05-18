@@ -87,15 +87,16 @@ function anonymous(anchor, $, slot_fn) {
     const component0 = CORE.block_cache.get("component0_id");
     const component0_components = CORE.block_cache.get("component0_components_id");
     const component0_slot_fn = CORE.block_cache.get("component0_slot_id");
-    const component0_dynamic_props = component0.dynamic_props.map((prop) => ({ key : prop.key, fn : (($) => /* props.expr */ null) }));
-    const component0_anchor = new Text("");
 
-    child6.parentNode.replaceChild(component0_anchor, child7);
+    Object.defineProperties(component0.props, {
+        name: {
+            get () {
+                return "expr";
+            }
+        }
+    });
 
-    dispose_fns[8] = CORE.effect(() => {
-        for (const prop of component0_dynamic_props) component0.props[prop.key] = prop.fn($);
-        return CORE.core_component(component0_anchor, component0_components.Component || $.Component, component0.props, component0_slot_fn, $);
-    })
+    dispose_fns[8] = CORE.core_component(child7, component0_components.Component || $.Component, component0.props, component0_slot_fn, $);
 
     // USE DIRECTIVE
     dispose_fns[9] = $.user_defined_function(child8, (/** use_directive expr */ null))

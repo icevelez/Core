@@ -11,6 +11,10 @@ export default component({
     }
 }, class {
 
+    object = signal({
+        name: "John"
+    });
+
     show_benchmark = signal(false);
     counter = signal(0);
     birth_date = new Date();
