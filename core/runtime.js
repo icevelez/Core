@@ -16,6 +16,8 @@ import { make_id } from "./helper-functions.js";
 /** @typedef {IfBlock | EachBlock | AwaitBlock | PropsBlock | SlotBlock | CoreBlock} BlockCache */
 
 const CORE = {
+    // flag to use comment node instead of text node as anchor
+    show_anchor_blocks : true,
     IDX_STATE: Symbol(),
     ARR_STATE: Symbol(),
     PRP_STATE: Symbol(),
@@ -295,12 +297,17 @@ function match_delegated_node(map, event, target) {
     for (const fn of fns) fn(event);
 }
 
+function replace_node_with_anchor(node, text) {
+    const anchor = CORE.show_anchor_blocks ? new Comment(text) : new Text("");
+    node.parentNode.replaceChild(anchor, node);
+}
+
 /**
  * @param {Node} node
  * @param {number[]} node_index
  * @param {Processes} processes
  */
-function processNode(node, node_index = [], processes = { children: [], events: [], bindings: [], attr_funcs: [], text_funcs: [], blocks: [], core_component_blocks: [], component_blocks: [], use_directives: [], slot_child_index: -1 }) {
+function process_node(node, node_index = [], processes = { children: [], events: [], bindings: [], attr_funcs: [], text_funcs: [], blocks: [], core_component_blocks: [], component_blocks: [], use_directives: [], slot_child_index: -1 }) {
     const isStyle = node instanceof HTMLStyleElement;
     if (isStyle) return processes;
 
@@ -324,6 +331,7 @@ function processNode(node, node_index = [], processes = { children: [], events: 
 
     const isCoreSlotNode = (node) => Boolean(node.dataset && node.dataset.block === "core-slot");
     if (isCoreSlotNode(node)) {
+        replace_node_with_anchor(node, "component-slot");
         processes.children.push(node_index);
         processes.slot_child_index = processes.children.length - 1;
         return processes;
@@ -340,8 +348,7 @@ function processNode(node, node_index = [], processes = { children: [], events: 
         const component_tag = node.dataset.componentTag || null;
         if (is_core_component_node && !component) throw "no default component found";
         if (is_component_node && (!component_id || !component_tag)) throw "component not found";
-        const anchor = new Comment("component-block");
-        node.parentNode.replaceChild(anchor, node);
+        replace_node_with_anchor(node, "component-block");
         processes.children.push(node_index);
         processes.component_blocks.push({ child_index: processes.children.length - 1, component, component_id, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
         return processes;
@@ -349,8 +356,7 @@ function processNode(node, node_index = [], processes = { children: [], events: 
 
     const isBlockNode = (node) => Boolean(node.dataset && node.dataset.block && node.dataset.blockId)
     if (isBlockNode(node)) {
-        const anchor = new Comment(node.dataset.block + "-block");
-        node.parentNode.replaceChild(anchor, node);
+        replace_node_with_anchor(node, node.dataset.block + "-block");
         processes.children.push(node_index);
         processes.blocks.push({ child_index: processes.children.length - 1, type: node.dataset.block, id: node.dataset.blockId });
         return processes;
@@ -398,18 +404,18 @@ function processNode(node, node_index = [], processes = { children: [], events: 
     }
 
     const childNodes = Array.from(node.childNodes);
-    for (let i = 0; i < childNodes.length; i++) processNode(childNodes[i], [...node_index, i], processes);
+    for (let i = 0; i < childNodes.length; i++) process_node(childNodes[i], [...node_index, i], processes);
 
     return processes;
 }
 
-const resolveChildNode = (i, i_arr = []) => `.childNodes[${i}]` + ((i_arr.length <= 0) ? '' : resolveChildNode(i_arr.splice(0, 1), i_arr));
+const resolve_child_node = (i, i_arr = []) => `.childNodes[${i}]` + ((i_arr.length <= 0) ? '' : resolve_child_node(i_arr.splice(0, 1), i_arr));
 
 /**
  * @param {string} key
  * @param {BlockCache} block
  */
-export const addBlockToCache = (key, block) => CORE.block_cache.set(key, block);
+export const add_block_to_cache = (key, block) => CORE.block_cache.set(key, block);
 
 /**
  * @param {Node} root
@@ -433,18 +439,19 @@ function remove_whitespace_nodes(root) {
 /**
  * @param {DocumentFragment | string} fragment
  */
-export function compileTemplate(fragment) {
+export function compile_template(fragment) {
     if (typeof fragment === "string") {
         const templateEl = document.createElement("template");
         templateEl.innerHTML = fragment;
         fragment = templateEl.content;
     }
 
+    // Call "remove_whitespace_nodes" before processing any node because in production text nodes are used as anchor points for block rendering
     remove_whitespace_nodes(fragment)
 
     let dispose_fn_i = -1;
 
-    const processes = processNode(fragment);
+    const processes = process_node(fragment);
     const fragment_cache_index = CORE.fragment_cache.length;
     CORE.fragment_cache.push(fragment);
 
@@ -463,7 +470,7 @@ export function compileTemplate(fragment) {
 ${
     (processes.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
     processes.children.map((child, i) => {
-        return `const child${i} = fragment${resolveChildNode(child.splice(0, 1)[0] || 0, child)};`;
+        return `const child${i} = fragment${resolve_child_node(child.splice(0, 1)[0] || 0, child)};`;
     }).join("\n\t")
 }${
     (processes.text_funcs.length > 0 || processes.attr_funcs.length > 0) ? `\n
@@ -547,7 +554,7 @@ ${
         CORE.remove_nodes(parent_node, node_start, node_end);
     }`);
 
-    console.log(func);
+    // console.log(func);
 
     return func;
 }
@@ -557,7 +564,7 @@ ${
 * @param {string} template
 * @param {number} imported_component_id
 */
-export function processComponents(template, imported_component_id) {
+export function process_components(template, imported_component_id) {
     return template.replace(/<([A-Z][A-Za-z0-9]*)\s*((?:[^>"']|"[^"]*"|'[^']*')*?)\s*(\/?)>(?:([\s\S]*?)<\/\1>)?/g, (match, tag, attrStr, _, inner_content) => {
         const props = {}, dynamic_props = [], props_id = `props-${make_id(8)}`, slot_id = `slot-${make_id(8)}`;
 
@@ -569,7 +576,7 @@ export function processComponents(template, imported_component_id) {
             }
         })
 
-        if (inner_content) addBlockToCache(slot_id, compileTemplate(inner_content));
+        if (inner_content) add_block_to_cache(slot_id, compile_template(inner_content));
 
         // USED TO ATTACH DYNAMIC PROPS WITHOUT TRIGGER A GETTER BY USING A HIDDEN PROPERTY USING THE "CORE.PRP_STATE" SYMBOL CONTAINING FUNCTION TO REFERENCE THE PROP VALUE
         // THE DYNAMIC PROP VALUE IS A FUNCTION CALL MADE BY THE TEMPLATE COMPILER
@@ -583,7 +590,7 @@ export function processComponents(template, imported_component_id) {
             bind_dynamic_props(props);
         }
 
-        addBlockToCache(props_id, { props, dynamic_props });
+        add_block_to_cache(props_id, { props, dynamic_props });
 
         if (match.startsWith("<Core:slot")) return `<template data-block="core-slot"></template>`;
         if (match.startsWith("<Core:component")) {
@@ -602,12 +609,12 @@ export function processComponents(template, imported_component_id) {
 * @param {(template:string) => DocumentFragment} template_processor
 * @returns {(anchor:Node, props:Record<string, any>, slot_fn?:Function) => () => void}
 */
-export function createComponent(options, context, template_processor) {
+export function create_component(options, context, template_processor) {
     if (context && !context.toString().startsWith("class")) throw new Error("context is not a class");
 
     const components_id = `component-${make_id(6)}`;
-    const template = processComponents(options.template, components_id);
-    const template_fn = compileTemplate(template_processor(template));
+    const template = process_components(options.template, components_id);
+    const template_fn = compile_template(template_processor(template));
 
     if (options.components && Object.keys(options.components).length > 0) CORE.block_cache.set(components_id, options.components);
 
