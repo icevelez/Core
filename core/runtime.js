@@ -111,6 +111,13 @@ const CORE = {
 
         parentNode.removeChild(endNode);
     },
+    /**
+     * Returns a function to dispose DOM nodes and reactive bindings
+     * @param {Node} anchor
+     * @param {any} $
+     * @param {string} id
+     * @param {(($:any) => Boolean)[]} condition_fns
+     */
     if: (anchor, $, id, condition_fns) => {
         const fragment = document.createDocumentFragment();
         const if_block = CORE.block_cache.get(id);
@@ -137,6 +144,14 @@ const CORE = {
             anchor.before(fragment);
         }, { track_inner_effect : false })
     },
+    /**
+     * Returns a function to dispose DOM nodes and reactive bindings
+     * @param {Node} anchor
+     * @param {any} $
+     * @param {string} id
+     * @param {() => any[]} arr_fn
+     * @param {Object} descriptor
+     */
     each: (anchor, $, id, arr_fn, descriptor) => {
         let else_block_dispose_fn = null;
         let existing_dispose_blocks = [];
@@ -193,6 +208,13 @@ const CORE = {
             existing_dispose_blocks = new_each_dispose_blocks;
         }, { track_inner_effect : false })
     },
+    /**
+     * Returns a function to dispose DOM nodes and reactive bindings
+     * @param {Node} anchor
+     * @param {any} $
+     * @param {string} id
+     * @param {() => Promise<any>} await_fn
+     */
     await: function (anchor, $, id, await_fn) {
         let pending_dispose_fn;
         let dispose_fn;
@@ -247,6 +269,13 @@ const CORE = {
             return dispose;
         }, { track_inner_effect : false });
     },
+    /**
+     * Returns a function to dispose DOM nodes and reactive bindings
+     * @param {Node} anchor
+     * @param {Function | { default : Function }} fn
+     * @param {any} props
+     * @param {Function} slot_fn
+     */
     core_component: function (anchor, fn, props, slot_fn) {
         const fragment = document.createDocumentFragment();
         const dispose = (fn.default ? fn.default : fn)(fragment, props, slot_fn);
@@ -382,6 +411,9 @@ const resolveChildNode = (i, i_arr = []) => `.childNodes[${i}]` + ((i_arr.length
  */
 export const addBlockToCache = (key, block) => CORE.block_cache.set(key, block);
 
+/**
+ * @param {Node} root
+ */
 function remove_whitespace_nodes(root) {
     let child = root.firstChild;
 
