@@ -18,6 +18,7 @@ import { make_id } from "./helper-functions.js";
 const CORE = {
     IDX_STATE: Symbol(),
     ARR_STATE: Symbol(),
+    PRP_STATE: Symbol(),
     effect,
     is_signal,
     version: "0.4.0",
@@ -430,7 +431,7 @@ export function compileTemplate(fragment) {
 ${
     (processes.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
     processes.children.map((child, i) => {
-        return `const child${i} = fragment${resolveChildNode(child.splice(0, 1), child)};`;
+        return `const child${i} = fragment${resolveChildNode(child.splice(0, 1)[0] || 0, child)};`;
     }).join("\n\t")
 }${
     (processes.text_funcs.length > 0 || processes.attr_funcs.length > 0) ? `\n
@@ -486,7 +487,7 @@ ${
     const component${i}_slot_fn = CORE.block_cache.get("${block.slot_id}");
     const component${i}_props = Object.create(component${i}.props);
 ${
-    component.dynamic_props.length > 0 ? `\n\tObject.defineProperties(component${i}_props, {\n\t\t${component.dynamic_props.map((prop) => `${prop.key}: { get() { return (${prop.expr || "undefined"}); } }`).join("\n\t\t")}\n\t});\n\t` : ''
+    component.dynamic_props.length > 0 ? `\n\tcomponent${i}.props[CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ") } };\n` : ''
 }
     dispose_fns[${++dispose_fn_i}] = CORE.core_component(child${block.child_index}, ${block.component ? `$.${block.component}` : `component${i}_components.${block.component_tag}` }, component${i}_props, (anchor) => component${i}_slot_fn(anchor, $));`}).join("\n\n\t")
 }${
@@ -530,13 +531,26 @@ export function processComponents(template, imported_component_id) {
 
         attrStr.replace(/([\w:@-]+)(?:\s*=\s*"([^"]*)")?/g, (_, key, value) => {
             if (key.startsWith(":")) {
-                if (value) dynamic_props.push({ key : key.slice(1, key.length), expr: value });
+                if (value) dynamic_props.push({ key: key.slice(1, key.length), expr: value });
             } else if (value) {
                 props[key] = value;
             }
         })
 
         if (inner_content) addBlockToCache(slot_id, compileTemplate(inner_content));
+
+        // USED TO ATTACH DYNAMIC PROPS WITHOUT TRIGGER A GETTER BY USING A HIDDEN PROPERTY USING THE "CORE.PRP_STATE" SYMBOL CONTAINING FUNCTION TO REFERENCE THE PROP VALUE
+        // THE DYNAMIC PROP VALUE IS A FUNCTION CALL MADE BY THE TEMPLATE COMPILER
+        // DOING THIS HERE TO DEFINE PROPERTY ONCE TO SAVE ON PERFORMANCE
+        if (dynamic_props.length > 0) {
+            const bind_dynamic_props = new Function('props', `
+                const CORE = window.__core__;
+                Object.defineProperties(props, { ${dynamic_props.map((p) => `${p.key} : { get() { return this[CORE.PRP_STATE].${p.key}(); } }`).join(",\n")} })
+                return props;
+            `)
+            bind_dynamic_props(props);
+        }
+
         addBlockToCache(props_id, { props, dynamic_props });
 
         if (match.startsWith("<Core:slot")) return `<template data-block="core-slot"></template>`;
