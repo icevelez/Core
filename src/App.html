@@ -14,7 +14,7 @@
     <input type="text" bind:value="$.message"/>
     <input type="text" bind:value="$.name"/>
 
-    {{#each '1'.repeat(100).split("") as _}}
+    {{#each $.arr() as _}}
         <Comp :name="$.name()">
             <h1>This is from parent {{ $.message() }}</h1>
         </Comp>

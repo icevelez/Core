@@ -164,6 +164,9 @@ const CORE = {
         const $sub = Object.create($);
         Object.defineProperties($sub, descriptor);
 
+        const start_node = new Text("");
+        anchor.before(start_node);
+
         return CORE.effect(() => {
             const arr = arr_fn();
 
@@ -173,7 +176,10 @@ const CORE = {
             $sub[CORE.ARR_STATE] = arr;
 
             if (!arr || arr?.length <= 0) {
-                if (existing_dispose_blocks.length > 0) anchor.parentNode.replaceChildren(anchor);
+                if (existing_dispose_blocks.length > 0) {
+                    const parent_node = anchor.parentNode;
+                    CORE.remove_nodes(parent_node, start_node.nextSibling, anchor.previousSibling);
+                }
 
                 for (const dispose of existing_dispose_blocks) dispose();
                 existing_dispose_blocks.length = 0;
