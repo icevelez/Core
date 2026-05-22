@@ -1,5 +1,4 @@
-import { make_id } from "../helper-functions.js";
-import { add_block_to_cache, compile_template, create_component } from "../runtime.js";
+import { add_block_to_cache, compile_template, create_component, make_id } from "../runtime.js";
 
 /**
 * @param {{ template : string, components : Record<string, Function> }} options

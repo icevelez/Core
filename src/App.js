@@ -1,9 +1,7 @@
 import { component } from "../core/parser/handlebar.js";
-import { signal } from "../core/reactivity.js";
-import { load } from "../core/core.js";
+import { set_context, signal, load } from "../core/runtime.js";
 
 import Comp from "./Comp.js";
-import { set_context } from "../core/runtime.js";
 
 export default component({
     template: await load("src/App.html"),

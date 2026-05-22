@@ -1,6 +1,5 @@
-import { load } from "../../core/core.js";
 import { component } from "../../core/parser/handlebar.js";
-import { effect, signal } from "../core/reactivity.js";
+import { load, signal } from "../core/runtime.js";
 
 let rowId = 1;
 

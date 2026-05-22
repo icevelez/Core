@@ -1,5 +1,5 @@
 import { component } from "../core/parser/handlebar.js";
-import { signal, effect } from "../core/reactivity.js";
+import { signal, effect } from "../core/runtime.js";
 
 export default component({
     template: `
