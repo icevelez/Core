@@ -3,12 +3,13 @@ import { component } from "../core/parser/handlebar.js";
 
 const InnerComp = component({
     template: `
-        <h1>Message: {{ $.message }}</h1>
+        <h1>Message: {{ $.message }} {{ $.number }}</h1>
     `
 }, class {
 
     constructor() {
         this.message = get_context("example");
+        this.number = get_context("rand");
     }
 })
 
@@ -31,7 +32,9 @@ export default component({
 
     constructor(props) {
         this.x = get_context("example");
-        if (Math.random() * 10 >= 5) set_context("example", "randomly xxxxx");
+        const rand = Math.random() * 10 >= 5;
+        if (rand) set_context("example", "randomly xxxxx");
+        set_context("rand", rand);
         this.props = props;
     }
 

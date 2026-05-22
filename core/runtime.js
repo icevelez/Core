@@ -270,9 +270,10 @@ const CORE = {
 
         const await_block = CORE.block_cache.get(id);
         const fragment = document.createDocumentFragment();
+        const context = create_new_context(); // GET CURRENT CONTEXT TO RE-SET WHEN FULLFILLING A PROMISE / CATCHING AN ERROR
 
         const effect_dispose = CORE.effect(() => {
-            const promise = await_fn();
+            const promise = new Promise(async (resolve) => { try { resolve([await await_fn(), null]) } catch (error) { resolve([null, error]); } });
             const curr_id = Math.random();
             last_id = curr_id;
 
@@ -285,22 +286,21 @@ const CORE = {
             pending_dispose_fn = await_block.pending_fn(fragment, $);
             anchor.before(fragment);
 
-            promise.then((value) => {
-                if (last_id !== curr_id || !await_block.then_fn) return;
-                const $sub = Object.create($);
-                $sub[await_block.then_key] = value;
-                dispose_fn = await_block.then_fn(fragment, $sub);
-            }).catch((error) => {
-                if (last_id !== curr_id || !await_block.catch_fn) return;
-                const $sub = Object.create($);
-                $sub[await_block.catch_key] = error;
-                dispose_fn = await_block.catch_fn(fragment, $sub);
-            }).finally(() => {
+            promise.then(([value, error]) => {
                 if (last_id !== curr_id) return;
+
+                const $sub = Object.create($);
+                if (!error && await_block.then_key) $sub[await_block.then_key] = value;
+                if (error && await_block.catch_key) $sub[await_block.catch_key] = error;
+
+                const old_context = CORE.context.set_current_context(context);
+                dispose_fn = (error ? await_block.catch_fn : await_block.then_fn)(fragment, $sub);
+                CORE.context.set_current_context(old_context);
+
                 pending_dispose_fn();
                 pending_dispose_fn = null;
                 anchor.before(fragment);
-            });
+            })
 
             return dispose;
         }, { track_inner_effect: false });
