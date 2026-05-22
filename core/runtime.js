@@ -601,8 +601,10 @@ ${
 
         for (const fn of dispose_fns) fn();
         dispose_fns.length = 0;
+
         const parent_node = node_start.parentNode;
         if (!parent_node) return;
+
         CORE.remove_nodes(parent_node, node_start, node_end);
     }`);
 
