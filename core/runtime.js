@@ -1,6 +1,8 @@
 import { effect, is_proxy, is_signal } from "./reactivity.js";
 import { make_id } from "./helper-functions.js";
+
 import { defer_on_mount, is_mounted } from "./lifecycle.js";
+import { create_new_context, set_current_context } from "./context.js";
 
 /** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Processes */
 
@@ -25,6 +27,10 @@ const CORE = {
     lifecycle: {
         is_mounted,
         defer_on_mount,
+    },
+    context: {
+        create_new_context,
+        set_current_context,
     },
     effect,
     is_signal,
@@ -130,7 +136,8 @@ const CORE = {
         const if_block = CORE.block_cache.get(id);
         const fns = if_block.fns;
 
-        let prev_fn, dispose;
+        let prev_fn
+        let dispose;
 
         const effect_dispose = CORE.effect(() => {
             let curr_fn;
@@ -200,7 +207,10 @@ const CORE = {
                 return;
             }
 
-            if (else_block_dispose_fn) else_block_dispose_fn = else_block_dispose_fn() ? null : null;
+            if (else_block_dispose_fn) {
+                else_block_dispose_fn()
+                else_block_dispose_fn = null;
+            }
 
             const new_each_dispose_blocks = [];
 
@@ -227,6 +237,8 @@ const CORE = {
         }, { track_inner_effect: false })
 
         return () => {
+            if (else_block_dispose_fn) else_block_dispose_fn();
+            else_block_dispose_fn = null;
             for (const dispose of existing_dispose_blocks) dispose();
             existing_dispose_blocks.length = 0;
             effect_dispose();
@@ -650,12 +662,12 @@ export function process_components(template, imported_component_id) {
 
 /**
 * @param {{ template : string, components : Record<string, Function> }} options
-* @param {Object} context object that encapsulate data and logic
+* @param {Object} data object that encapsulate data and logic
 * @param {(template:string) => DocumentFragment} template_processor
 * @returns {(anchor:Node, props:Record<string, any>, slot_fn?:Function) => () => void}
 */
-export function create_component(options, context, template_processor) {
-    if (context && !context.toString().startsWith("class")) throw new Error("context is not a class");
+export function create_component(options, data, template_processor) {
+    if (data && !data.toString().startsWith("class")) throw new Error("data is not a class");
 
     const components_id = `component-${make_id(6)}`;
     const template = process_components(options.template, components_id);
@@ -663,7 +675,13 @@ export function create_component(options, context, template_processor) {
 
     if (options.components && Object.keys(options.components).length > 0) CORE.block_cache.set(components_id, options.components);
 
-    return (anchor, props, slot_fn) => template_fn(anchor, !context ? {} : new context(props), slot_fn);
+    return (anchor, props, slot_fn) => {
+        const context = create_new_context();
+        const old_context = CORE.context.set_current_context(context);
+        const dispose = template_fn(anchor, !data ? {} : new data(props), slot_fn);
+        CORE.context.set_current_context(old_context);
+        return dispose;
+    };
 }
 
 window.__core__ = CORE;

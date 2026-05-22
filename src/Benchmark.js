@@ -161,5 +161,8 @@ export default component({
 
     onMount = () => {
         console.log(document.body);
+        return () => {
+            console.log("Benchmark on mount dispose")
+        }
     }
 });

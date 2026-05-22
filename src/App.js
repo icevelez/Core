@@ -3,6 +3,7 @@ import { signal } from "../core/reactivity.js";
 import { load } from "../core/core.js";
 
 import Comp from "./Comp.js";
+import { set_context } from "../core/context.js";
 
 export default component({
     template: await load("src/App.html"),
@@ -19,9 +20,10 @@ export default component({
     arr = signal('1'.repeat(10).split(""));
 
     constructor() {
-        setTimeout(() => {
-            // this.arr.set([])
-        }, 2000);
+        // setTimeout(() => {
+        //     this.arr.set([])
+        // }, 2000);
+        set_context("example", "Hello world");
     }
 
 })
