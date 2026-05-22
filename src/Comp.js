@@ -1,4 +1,4 @@
-import { get_context, set_context } from "../core/context.js";
+import { get_context, set_context } from "../core/runtime.js";
 import { component } from "../core/parser/handlebar.js";
 
 const InnerComp = component({

@@ -3,7 +3,7 @@ import { signal } from "../core/reactivity.js";
 import { load } from "../core/core.js";
 
 import Comp from "./Comp.js";
-import { set_context } from "../core/context.js";
+import { set_context } from "../core/runtime.js";
 
 export default component({
     template: await load("src/App.html"),

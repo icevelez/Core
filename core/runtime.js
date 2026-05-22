@@ -1,9 +1,6 @@
 import { effect, is_proxy, is_signal } from "./reactivity.js";
 import { make_id } from "./helper-functions.js";
 
-import { defer_on_mount, is_mounted } from "./lifecycle.js";
-import { create_new_context, set_current_context } from "./context.js";
-
 /** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Processes */
 
 /** @typedef {(anchor:Node, $:any, slot_fn:Function) => (() => void)} CoreBlock returns a function to dispose any event and reactive effect */
@@ -30,7 +27,7 @@ const CORE = {
     },
     context: {
         create_new_context,
-        set_current_context,
+        set_new_context,
     },
     effect,
     is_signal,
@@ -293,9 +290,9 @@ const CORE = {
                 if (!error && await_block.then_key) $sub[await_block.then_key] = value;
                 if (error && await_block.catch_key) $sub[await_block.catch_key] = error;
 
-                const old_context = CORE.context.set_current_context(context);
+                const old_context = CORE.context.set_new_context(context);
                 dispose_fn = (error ? await_block.catch_fn : await_block.then_fn)(fragment, $sub);
-                CORE.context.set_current_context(old_context);
+                CORE.context.set_new_context(old_context);
 
                 pending_dispose_fn();
                 pending_dispose_fn = null;
@@ -308,6 +305,7 @@ const CORE = {
         return () => {
             dispose_fn();
             effect_dispose();
+            CORE.context.set_new_context(context);
         }
     },
     /**
@@ -677,11 +675,58 @@ export function create_component(options, data, template_processor) {
 
     return (anchor, props, slot_fn) => {
         const context = create_new_context();
-        const old_context = CORE.context.set_current_context(context);
+        const old_context = CORE.context.set_new_context(context);
         const dispose = template_fn(anchor, !data ? {} : new data(props), slot_fn);
-        CORE.context.set_current_context(old_context);
-        return dispose;
+        CORE.context.set_new_context(old_context);
+        return () => {
+            dispose();
+            CORE.context.set_new_context(old_context);
+        };
     };
 }
 
 window.__core__ = CORE;
+
+// CONTEXT API
+
+const root_context = Object.create(null);
+let current_context = root_context;
+
+function create_new_context() {
+    return Object.create(current_context);
+}
+
+function set_new_context(context) {
+    const old_context = current_context;
+    current_context = context;
+    return old_context;
+}
+
+export function set_context(key, value) {
+    current_context[key] = value;
+}
+
+export function get_context(key) {
+    return current_context[key];
+}
+
+// LIFECYCLE API
+
+const mount_fns = [];
+
+let mounted = false;
+
+function is_mounted() {
+    return mounted;
+}
+
+function defer_on_mount(...args) {
+    mount_fns.push(args);
+}
+
+export function mount(app, target) {
+    const dispose = app(target);
+    for (const [fn, cb] of mount_fns) cb(fn());
+    mounted = true;
+    return dispose;
+}

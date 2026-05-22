@@ -1,4 +1,4 @@
-import { mount } from "./core/lifecycle.js";
+import { mount } from "./core/runtime.js";
 import App from "./src/App.js";
 
 mount(App, document.getElementById("app"));
