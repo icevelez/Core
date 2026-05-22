@@ -16,4 +16,15 @@ export default component({
         this.props = props;
     }
 
+    onMount = () => {
+        console.log("Comp onmount");
+        return () => {
+            console.log("Comp onmount dispose")
+        }
+    }
+
+    onDestroy = () => {
+        console.log("Comp ondestroy");
+    }
+
 })

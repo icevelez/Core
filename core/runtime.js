@@ -1,5 +1,6 @@
 import { effect, is_proxy, is_signal } from "./reactivity.js";
 import { make_id } from "./helper-functions.js";
+import { defer_on_mount, is_mounted } from "./lifecycle.js";
 
 /** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Processes */
 
@@ -21,6 +22,10 @@ const CORE = {
     IDX_STATE: Symbol(),
     ARR_STATE: Symbol(),
     PRP_STATE: Symbol(),
+    lifecycle: {
+        is_mounted,
+        defer_on_mount,
+    },
     effect,
     is_signal,
     version: "0.4.0",
@@ -127,7 +132,7 @@ const CORE = {
 
         let prev_fn, dispose;
 
-        return CORE.effect(() => {
+        const effect_dispose = CORE.effect(() => {
             let curr_fn;
 
             for (let i = 0; i < condition_fns.length; i++) {
@@ -144,7 +149,12 @@ const CORE = {
 
             dispose = curr_fn(fragment, $);
             anchor.before(fragment);
-        }, { track_inner_effect : false })
+        }, { track_inner_effect: false })
+
+        return () => {
+            dispose();
+            effect_dispose();
+        }
     },
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
@@ -167,7 +177,7 @@ const CORE = {
         const start_node = new Text("");
         anchor.before(start_node);
 
-        return CORE.effect(() => {
+        const effect_dispose = CORE.effect(() => {
             const arr = arr_fn();
 
             if (curr_arr === arr && !is_proxy(curr_arr)) return;
@@ -214,7 +224,13 @@ const CORE = {
             if (new_each_dispose_blocks.length > 0) anchor.before(fragment);
 
             existing_dispose_blocks = new_each_dispose_blocks;
-        }, { track_inner_effect : false })
+        }, { track_inner_effect: false })
+
+        return () => {
+            for (const dispose of existing_dispose_blocks) dispose();
+            existing_dispose_blocks.length = 0;
+            effect_dispose();
+        }
     },
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
@@ -243,7 +259,7 @@ const CORE = {
         const await_block = CORE.block_cache.get(id);
         const fragment = document.createDocumentFragment();
 
-        return CORE.effect(() => {
+        const effect_dispose = CORE.effect(() => {
             const promise = await_fn();
             const curr_id = Math.random();
             last_id = curr_id;
@@ -275,7 +291,12 @@ const CORE = {
             });
 
             return dispose;
-        }, { track_inner_effect : false });
+        }, { track_inner_effect: false });
+
+        return () => {
+            dispose_fn();
+            effect_dispose();
+        }
     },
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
@@ -473,6 +494,11 @@ export function compile_template(fragment) {
     /** @type {Function[]} */
     const dispose_fns = [];
 
+    const on_mount_fn = $.onMount;
+    const on_destroy_fn = $.onDestroy;
+    delete $.onMount;
+    delete $.onDestroy;
+
 ${
     (processes.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
     processes.children.map((child, i) => {
@@ -551,8 +577,21 @@ ${
 
     anchor.append(fragment);
 
+    let on_mount_dispose_fn;
+
+    if (typeof on_mount_fn === "function") {
+        if (CORE.lifecycle.is_mounted()) {
+            on_mount_dispose_fn = on_mount_fn();
+        } else {
+            CORE.lifecycle.defer_on_mount(on_mount_fn, (fn) => on_mount_dispose_fn = fn);
+        }
+    }
+
     // CLEAN UP
     return () => {
+        if (typeof on_mount_dispose_fn === "function") on_mount_dispose_fn();
+        if (typeof on_destroy_fn === "function") on_destroy_fn();
+
         for (const fn of dispose_fns) fn();
         dispose_fns.length = 0;
         const parent_node = node_start.parentNode;

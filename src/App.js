@@ -16,11 +16,11 @@ export default component({
     birth_date = new Date();
     name = signal("John");
     message = signal("This is a message");
-    arr = signal('1'.repeat(100).split(""));
+    arr = signal('1'.repeat(10).split(""));
 
     constructor() {
         setTimeout(() => {
-            this.arr.set([])
+            // this.arr.set([])
         }, 2000);
     }
 

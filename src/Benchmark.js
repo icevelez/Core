@@ -161,6 +161,5 @@ export default component({
 
     onMount = () => {
         console.log(document.body);
-        debugger;
     }
 });

@@ -1,6 +1,7 @@
+import { mount } from "./core/lifecycle.js";
 import App from "./src/App.js";
 
-App(document.getElementById("app"));
+mount(App, document.getElementById("app"));
 
 // import Benchmark from "./src/Benchmark.js";
 
