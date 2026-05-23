@@ -5,7 +5,7 @@ mount(App, document.getElementById("app"));
 
 // import Benchmark from "./src/Benchmark.js";
 
-// Benchmark(document.getElementById("app"))
+// mount(Benchmark, document.getElementById("app"));
 
 // import NewBenchmark from "./src/NewBenchmark.js";
 
