@@ -1,6 +1,36 @@
 import { add_block_to_cache, compile_template, create_component, make_id } from "../runtime.js";
 
 /**
+ * @param {string} url
+ */
+export async function sfc(url) {
+    let { script, template, error } = await fetch(url).then(async response => {
+        const text = await response.text();
+        if (!response.ok) return { error: text };
+
+        const base = document.createElement("template");
+        base.innerHTML = text;
+
+        const scriptEl = base.content.querySelector("script");
+        const script = scriptEl?.innerHTML || "";
+        const template = text.replace(scriptEl?.outerHTML, "");
+
+        return { script, template, error : null };
+    });
+    if (error) throw error;
+
+    if (!script) return component({ template });
+
+    const href = window.location.href;
+    const script_content = script.replaceAll(`from "#`, `from "${href.substring(0, href.length - 1)}`);
+    const script_blob = new Blob([script_content], { type: 'text/javascript' });
+    const script_url = URL.createObjectURL(script_blob);
+    const { default: ctx, ...components } = await import(script_url);
+
+    return component({ template, components }, ctx);
+}
+
+/**
 * @param {{ template : string, components : Record<string, Function> }} options
 * @param {Object} Ctx anonymous class that encapsulate data and logic
 * @returns {(anchor:Node, props:Record<string, any>) => () => void}
