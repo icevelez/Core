@@ -1,0 +1,35 @@
+<script>
+    import { component } from "#/core/magic.js";
+    import { signal } from "#/core/runtime.js";
+
+    export const Comp = await component("/comp.html");
+
+    export default class {
+
+        counter = signal(0);
+        birth_date = new Date();
+        name = signal("John");
+        message = signal("This is a message");
+        arr = signal('1'.repeat(10).split(""));
+
+        constructor() {}
+
+    }
+</script>
+
+<template>
+    <h1>{{ $.name() }}</h1>
+    <p>Birth Date: {{ `${$.birth_date.toISOString()}` }}</p>
+    <button on:click="() => $.counter.set($.counter()+1)">Count: {{ $.counter() }}</button>
+    <hr>
+    <h1>{{ $.message() }}</h1>
+    <input type="text" bind:value="$.message"/>
+    <input type="text" bind:value="$.name"/>
+
+    {{#each $.arr() as _}}
+        <Comp :name="$.name()" :message="$.message()">
+            <h1>This is from parent {{ $.message() }}</h1>
+        </Comp>
+        <hr>
+    {{/each}}
+</template>

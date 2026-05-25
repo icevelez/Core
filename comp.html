@@ -1,0 +1,17 @@
+<script>
+    console.log("HELLO FROM COMP");
+
+    export default class {
+
+        constructor(props) {
+            this.props = props;
+        }
+
+    }
+</script>
+
+<template>
+    <h1>This HTML is from Comp.html {{ $.props.name }}</h1>
+    <Core:slot/>
+    <h2>End of Slot == {{ $.props.message }} ==</h2>
+</template>
