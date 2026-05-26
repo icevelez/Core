@@ -25,7 +25,13 @@ export async function sfc(url) {
     const script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(`from "#`, `from "${href.substring(0, href.length - 1)}`);
     const script_blob = new Blob([script_content], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
-    const { default: ctx, ...components } = await import(script_url);
+    const { default: ctx, ...component_promises } = await import(script_url);
+
+    const components_keys = Object.keys(component_promises);
+    const components_arr = await Promise.all(components_keys.map((k) => component_promises[k]));
+    const components = {};
+
+    for (let i = 0; i < components_keys.length; i++) components[components_keys[i]] = components_arr[i];
 
     return component({ template, components }, ctx);
 }

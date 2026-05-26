@@ -1,0 +1,14 @@
+<script>
+    import { signal } from "#/core/runtime.js";
+
+    console.log("Hello from Another");
+
+    export default class {
+
+        text = signal("Hello World");
+
+    }
+</script>
+
+<h1>XXX Testing Concurrency {{ $.text() }}</h1>
+<input bind:value="$.text">
