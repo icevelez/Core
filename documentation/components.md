@@ -129,3 +129,39 @@ export default component({
 ```
 
 ---
+
+# Passing Props
+
+Props use the `:` prefix syntax for evaluating JS expression. Core.js would treat one without a prefix as a static value
+
+Example:
+
+```html
+<MyComponent :name="`${$.name()} ${$.count()}`"/>
+```
+
+```html
+<MyComponent name="Static John"/>
+```
+
+Props may contain:
+
+* signals
+* expressions
+* template literals
+* computed values
+
+```js
+import { load } from "/core/core.js";
+import { component } from "/core/handlebar.js";
+
+export default component({
+    template: await load("src/MyComponent.html"),
+} class {
+
+    constructor(props) {
+        this.props = props; // ✅ this preserves reactivity
+        this.name = props.name; // 🚫 this loses reactiity
+    }
+});
+```
