@@ -13,8 +13,8 @@
 /** @typedef {IfBlock | EachBlock | AwaitBlock | PropsBlock | SlotBlock | CoreBlock} BlockCache */
 
 const CORE = {
-    // flag to use comment node instead of text node as anchor
-    show_anchor_blocks : true,
+    version: "0.4.0",
+    show_anchor_blocks : true, // flag to use comment node instead of text node as anchor, good for debugging
     IDX_STATE: Symbol(),
     ARR_STATE: Symbol(),
     PRP_STATE: Symbol(),
@@ -28,7 +28,6 @@ const CORE = {
     },
     effect,
     is_signal,
-    version: "0.4.0",
     /** @type {DocumentFragment[]} */
     fragment_cache: [],
     /** @type {Map<string, BlockCache[]>} */
@@ -174,7 +173,7 @@ const CORE = {
         const $sub = Object.create($);
         Object.defineProperties($sub, descriptor);
 
-        const start_node = new Text("");
+        const start_node = CORE.show_anchor_blocks ? new Comment("each-block-start") : new Text("");
         anchor.before(start_node);
 
         const effect_dispose = CORE.effect(() => {
@@ -659,7 +658,7 @@ export function process_components(template, imported_component_id) {
 * @param {{ template : string, components : Record<string, Function> }} options
 * @param {Object} data object that encapsulate data and logic
 * @param {(template:string) => DocumentFragment} template_processor
-* @returns {(anchor:Node, props:Record<string, any>, slot_fn?:Function) => () => void}
+* @returns {(anchor:Node, props:Record<string, any>, slot_fn?:(anchor:Node) => void) => () => void}
 */
 export function create_component(options, data, template_processor) {
     if (data && !data.toString().startsWith("class")) throw new Error("data is not a class");
