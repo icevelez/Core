@@ -19,7 +19,8 @@
 <input bind:value="$.name">
 <h1>Hello {{ $.name() }}</h1>
 <hr>
-    <Example :name="`${$.name()} ${$.count()}`">
-        <h1>Hi from Parent Scope {{ $.count() }}</h1>
-    </Example>
+<Example :name="`${$.name()} ${$.count()}`">
+    <h1>Hi from Parent Scope {{ $.count() }}</h1>
+</Example>
 <hr>
+<Another/>
