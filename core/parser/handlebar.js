@@ -4,6 +4,8 @@ import { add_block_to_cache, compile_template, create_component, make_id } from 
  * @param {string} url
  */
 export async function sfc(url) {
+    if (!window.sfc) window.sfc = sfc;
+
     const { script, template, error } = await fetch(url).then(async response => {
         const text = await response.text();
         if (!response.ok) return { error: text };
@@ -21,7 +23,7 @@ export async function sfc(url) {
 
     if (!script) return component({ template });
 
-    const href = window.location.href;
+    const href = window.location.href.split("#")[0];
     const script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(`from "#`, `from "${href.substring(0, href.length - 1)}`);
     const script_blob = new Blob([script_content], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);

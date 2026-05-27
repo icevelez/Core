@@ -1,10 +1,13 @@
 <script>
     import { sfc } from "#/core/parser/handlebar.js";
     import { signal } from "#/core/runtime.js";
+    import { Router } from "#/lib/router.js";
 
     export const PropSlotExample = sfc("/sfc/PropSlotExample.html");
 
     export default class {
+
+        Router = Router;
 
         name = signal("John");
         count = signal(0);
@@ -12,10 +15,18 @@
     }
 </script>
 
-<button on:click="() => $.count.set($.count()+1)">Count: {{ $.count() }}</button>
-<input bind:value="$.name">
-<h1>Hello {{ $.name() }}</h1>
-<hr>
-<PropSlotExample :name="`${$.name()} ${$.count()}`">
-    <h1>Hi from Parent Scope {{ $.count() }}</h1>
-</PropSlotExample>
+{{#if $.Router.match("/benchmark").is_match}}
+    {{#await sfc("sfc/Benchmark.html")}}
+        <h1>Loading Benchmark</h1>
+    {{:then Benchmark}}
+        <Core:component default="Benchmark"/>
+    {{/await}}
+{{:else}}
+    <button on:click="() => $.count.set($.count()+1)">Count: {{ $.count() }}</button>
+    <input bind:value="$.name">
+    <h1>Hello {{ $.name() }}</h1>
+    <hr>
+    <PropSlotExample :name="`${$.name()} ${$.count()}`">
+        <h1>Hi from Parent Scope {{ $.count() }}</h1>
+    </PropSlotExample>
+{{/if}}

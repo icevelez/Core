@@ -605,7 +605,7 @@ ${
         CORE.remove_nodes(parent_node, node_start, node_end);
     }`);
 
-    console.log(func);
+    // console.log(func);
 
     return func;
 }
