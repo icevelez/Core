@@ -15,7 +15,7 @@ export async function sfc(url) {
         const script = scriptEl?.innerHTML || "";
         const template = text.replace(scriptEl?.outerHTML, "");
 
-        return { script, template, error : null };
+        return { script, template };
     });
     if (error) throw error;
 

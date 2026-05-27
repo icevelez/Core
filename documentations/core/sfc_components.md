@@ -7,7 +7,7 @@ Core.js supports Single File Components (SFCs), allowing components to be writte
 * imports
 * template markup
 
-The format is inspired by frameworks such as:
+The format is inspired by these frameworks:
 
 * Vue.js
 * Svelte
@@ -41,6 +41,7 @@ Example:
     }
 </script>
 
+<h1>{{ $.count() }}</h1>
 <button on:click="() => $.count.set($.count()+1)">
     Click Me
 </button>
@@ -56,7 +57,7 @@ Inside the `<script>` block you may import runtime APIs:
 import { signal } from "#/core/runtime.js";
 ```
 
-Core.js uses the `#/` alias for absolute imports because the imported script from blob URLs does not have the relative context of the current domain.
+Core.js uses the `#/` alias for absolute imports because the imported script from object URLs does not have any context of its current file path nor its domain.
 
 Example:
 
@@ -288,12 +289,140 @@ are required.
 
 ---
 
+## SFC Interoperability
+
+Core.js Single File Components (SFC) are fully interoperable with traditional JavaScript-based components.
+
+This means you can freely mix:
+
+* `.html` SFC components loaded via `sfc()`
+* standard JavaScript components created with `component()`
+
+inside the same application.
+
+This allows gradual adoption of SFCs without rewriting existing components.
+
+---
+
+# Example Structure
+
+```text
+src/
+├── App.js
+├── App.html
+└── sfc/
+    └── Example.html
+```
+
+---
+
+# JavaScript Component (`App.js`)
+
+```js
+import { component, sfc } from "../core/parser/handlebar.js";
+import { signal, load } from "../core/runtime.js";
+
+export default component({
+    template: await load("src/App.html"),
+    components: {
+        Example: await sfc("sfc/Example.html")
+    }
+}, class {
+
+    name = signal("John");
+    
+});
+```
+
+---
+
+# Parent Template (`App.html`)
+
+```html
+<h1>Hello World</h1>
+
+<Example :name="$.name()">
+    <h1>Hello from parent scope</h1>
+</Example>
+```
+
+---
+
+# SFC Component (`Example.html`)
+
+```html
+<script>
+export default class {
+
+    constructor(props) {
+        this.props = props;
+    }
+
+}
+</script>
+
+<h1>Hello from Example.html — {{ $.props.name }}</h1>
+<Core:slot/>
+<h2>End of Example.html</h2>
+```
+
+---
+
+# What This Enables
+
+This interoperability allows:
+
+* mixing runtime-loaded SFCs and JS components
+* gradual migration between component styles
+* modular application structures
+* lazy-loaded browser-native components via ES modules
+* easier experimentation without build tooling
+
+---
+
+# Important Notes
+
+## SFCs compile at runtime
+
+`await sfc("Component.html")`
+
+loads:
+
+* the HTML template
+* `<script>` section
+* component class
+
+then converts them into a normal Core.js component internally.
+
+---
+
+## JS Components and SFCs are equivalent at runtime
+
+Both eventually become standard renderable Core.js component objects.
+
+Meaning:
+
+* props work identically
+* slots work identically
+* lifecycle hooks work identically
+* context API works identically
+
+regardless of whether the component originated from:
+
+* a `.js` file
+* or an `.html` SFC.
+
+--- 
+
 # Philosophy
 
-Core.js SFCs aim to combine:
+SFC support in Core.js is intentionally lightweight.
 
-* modern reactive rendering
-* component-based architecture
-* fine-grained updates
+Unlike traditional build-step SFC systems, Core.js SFCs are:
 
-with a simpler browser-native development workflow inspired by the early web while incorporating ideas from modern frontend frameworks.
+browser-native
+runtime compiled
+ES module friendly
+directly loadable without bundlers
+
+while still maintaining interoperability with standard JavaScript components.

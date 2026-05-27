@@ -2,10 +2,7 @@
     import { sfc } from "#/core/parser/handlebar.js";
     import { signal } from "#/core/runtime.js";
 
-    console.log("Hello from App");
-
-    export const Example = sfc("/sfc/Example.html");
-    export const Another = sfc("/sfc/Another.html");
+    export const PropSlotExample = sfc("/sfc/PropSlotExample.html");
 
     export default class {
 
@@ -15,12 +12,10 @@
     }
 </script>
 
-<button on:click="() => $.count.set($.count()+1)">Click Me</button>
+<button on:click="() => $.count.set($.count()+1)">Count: {{ $.count() }}</button>
 <input bind:value="$.name">
 <h1>Hello {{ $.name() }}</h1>
 <hr>
-<Example :name="`${$.name()} ${$.count()}`">
+<PropSlotExample :name="`${$.name()} ${$.count()}`">
     <h1>Hi from Parent Scope {{ $.count() }}</h1>
-</Example>
-<hr>
-<Another/>
+</PropSlotExample>
