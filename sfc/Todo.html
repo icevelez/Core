@@ -7,12 +7,6 @@
     export default class {
         todo_store = todo;
         new_todo = signal("");
-
-        constructor() {
-            effect(() => {
-                console.log("$.todo.state", this.todo.state);
-            })
-        }
     }
 </script>
 
@@ -22,9 +16,9 @@
 </div>
 <div>
     {{#each $.todo_store.state as { todo, done }, i}}
-    <div>
-        <p>{{ $.done ? '✅ ' : '' }}{{ $.todo }}</p><input type="checkbox" on:click="() => $.todo_store.toggle_todo($.i)"/>
-        <button on:click="() => $.todo_store.remove_todo($.i)">Remove</button>
-    </div>
+        <div>
+            <p>{{ $.done ? '✅ ' : '' }}{{ $.todo }}</p><input type="checkbox" on:click="() => $.todo_store.toggle_todo($.i)"/>
+            <button on:click="() => $.todo_store.remove_todo($.i)">Remove</button>
+        </div>
     {{/each}}
 </div>
