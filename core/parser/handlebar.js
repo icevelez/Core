@@ -23,8 +23,8 @@ export async function sfc(url) {
 
     if (!script) return component({ template });
 
-    const href = window.location.href.split("#")[0];
-    const script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(`from "#`, `from "${href.substring(0, href.length - 1)}`);
+    const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
+    const script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(`from "`, `from "${href}`);
     const script_blob = new Blob([script_content], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
     const { default: ctx, ...component_promises } = await import(script_url);

@@ -1,9 +1,10 @@
 <script>
-    import { sfc } from "#/core/parser/handlebar.js";
-    import { signal } from "#/core/runtime.js";
-    import { Router } from "#/lib/router.js";
+    import { sfc } from "../core/parser/handlebar.js";
+    import { signal } from "../core/runtime.js";
+    import { Router } from "../lib/router.js";
 
     export const PropSlotExample = sfc("/sfc/PropSlotExample.html");
+    export const Todo = sfc("sfc/Todo.html");
 
     export default class {
 
@@ -21,6 +22,8 @@
     {{:then Benchmark}}
         <Core:component default="Benchmark"/>
     {{/await}}
+{{:else if $.Router.match("/todo").is_match}}
+    <Todo/>
 {{:else}}
     <button on:click="() => $.count.set($.count()+1)">Count: {{ $.count() }}</button>
     <input bind:value="$.name">

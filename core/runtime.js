@@ -940,7 +940,7 @@ function create_container(object) {
 
 function create_proxy(container) {
     container.value[CONTAINER] = container;
-    return new Proxy(container.value, {
+    const proxy = new Proxy(container.value, {
         get(target, key) {
             if (key === IS_PROXY) return true;
             if (key === CONTAINER) return target[key];
@@ -979,7 +979,7 @@ function create_proxy(container) {
                     // Hack to trigger update when mutating an array
                     return (Array.isArray(target)) ? ((...args) => {
                         const result = target[key](...args.map((v) => (v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].proxy : v));
-                        if (array_mutation_keys.has(key)) trigger_all_nested(container);
+                        if (array_mutation_keys.has(key)) trigger_container(container);
                         return result;
                     }) : value;
                 track(dep);
@@ -1034,6 +1034,8 @@ function create_proxy(container) {
             return true;
         }
     })
+    proxy_to_container.set(proxy, container);
+    return proxy;
 }
 
 // HELPER FUNCTIONS
