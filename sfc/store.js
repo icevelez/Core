@@ -1,7 +1,16 @@
 import { create_controller_store } from "../lib/controller.js";
 
 /** @type {{ todo:string, done:boolean }[]} */
-const todo_arr = [];
+const todo_arr = [
+    {
+        todo: "Create a store that cannot directly be mutated (except for objects)",
+        done : false,
+    },
+    {
+        todo: "Add more todos",
+        done : false,
+    }
+];
 
 export const todo = create_controller_store(todo_arr, {
     add_todo: (value, todo) => {
