@@ -12,12 +12,15 @@
 
 <div>
     <input bind:value="$.new_todo" type="text" placeholder="New Todo">
-    <button on:click="() => { $.todo_store.add_todo($.new_todo()); $.new_todo = ''; }">Add Todo</button>
+    <button on:click="() => { $.todo_store.add_todo($.new_todo()); $.new_todo.set(''); }">Add Todo</button>
 </div>
 <div>
     {{#each $.todo_store.state as { todo, done }, i}}
         <div>
-            <p>{{ $.done ? '✅ ' : '' }}{{ $.todo }}</p><input type="checkbox" on:click="() => $.todo_store.toggle_todo($.i)"/>
+            <label style="display: flex; gap: 0.5rem; user-select: none;">
+                <input type="checkbox" on:click="() => $.todo_store.toggle_todo($.i)"/>
+                <p>{{ $.todo }}{{ $.done ? ' ✅ ' : '' }}</p>
+            </label>
             <button on:click="() => $.todo_store.remove_todo($.i)">Remove</button>
         </div>
     {{/each}}

@@ -203,15 +203,17 @@ const CORE = {
 
             const new_each_dispose_blocks = [];
 
-            let i = 0;
+            let i = -1;
             for (const ar of arr) {
+                i++;
+
                 if (existing_dispose_blocks[i]) {
                     new_each_dispose_blocks.push(existing_dispose_blocks[i]);
                     continue;
                 }
 
                 const $ = Object.create($sub);
-                $[CORE.IDX_STATE] = i++;
+                $[CORE.IDX_STATE] = i;
 
                 const dispose = each_block.fn(fragment, $);
                 new_each_dispose_blocks.push(dispose);
