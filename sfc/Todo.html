@@ -13,7 +13,9 @@
 
 <div>
     <input bind:value="$.new_todo" type="text" placeholder="New Todo">
-    <button on:click="() => { $.todo_store.add_todo($.new_todo()); $.new_todo.set(''); }">Add Todo</button>
+    <button on:click="() => { $.todo_store.add_todo($.new_todo()); $.new_todo.set(''); }">
+        Add Todo
+    </button>
 </div>
 <div>
     <h2>Completed: {{ $.todo_completed() }}</h2>

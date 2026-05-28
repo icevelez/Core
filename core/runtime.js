@@ -34,7 +34,6 @@ const CORE = {
     block_cache: new Map(),
     /** @type {Map<string, WeakMap<Node, Set<Function>>>} */
     delegated_events: new Map(),
-    eval: (expr = "", context) => new Function(context, `return ${expr};`),
     /**
      * @param {Node} node
      * @param {string} text
@@ -500,11 +499,6 @@ export function compile_template(fragment) {
     /** @type {Function[]} */
     const dispose_fns = [];
 
-    const on_mount_fn = $.onMount;
-    const on_destroy_fn = $.onDestroy;
-    delete $.onMount;
-    delete $.onDestroy;
-
 ${
     (processes.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
     processes.children.map((child, i) => {
@@ -583,21 +577,8 @@ ${
 
     anchor.append(fragment);
 
-    let on_mount_dispose_fn;
-
-    if (typeof on_mount_fn === "function") {
-        if (CORE.lifecycle.is_mounted()) {
-            on_mount_dispose_fn = on_mount_fn();
-        } else {
-            CORE.lifecycle.defer_on_mount(on_mount_fn, (fn) => on_mount_dispose_fn = fn);
-        }
-    }
-
     // CLEAN UP
     return () => {
-        if (typeof on_mount_dispose_fn === "function") on_mount_dispose_fn();
-        if (typeof on_destroy_fn === "function") on_destroy_fn();
-
         for (const fn of dispose_fns) fn();
         dispose_fns.length = 0;
 
@@ -658,12 +639,12 @@ export function process_components(template, imported_component_id) {
 
 /**
 * @param {{ template : string, components : Record<string, Function> }} options
-* @param {Object} data object that encapsulate data and logic
+* @param {Object} Data object that encapsulate data and logic
 * @param {(template:string) => DocumentFragment} template_processor
 * @returns {(anchor:Node, props:Record<string, any>, slot_fn?:(anchor:Node) => void) => () => void}
 */
-export function create_component(options, data, template_processor) {
-    if (data && !data.toString().startsWith("class")) throw new Error("data is not a class");
+export function create_component(options, Data, template_processor) {
+    if (Data && !Data.toString().startsWith("class")) throw new Error("Data is not a class");
 
     const components_id = `component-${make_id(6)}`;
     const template = process_components(options.template, components_id);
@@ -672,11 +653,33 @@ export function create_component(options, data, template_processor) {
     if (options.components && Object.keys(options.components).length > 0) CORE.block_cache.set(components_id, options.components);
 
     return (anchor, props, slot_fn) => {
+        const $ = !Data ? {} : new Data(props);
+
+        const on_mount_fn = $.onMount;
+        const on_destroy_fn = $.onDestroy;
+
+        delete $.onMount;
+        delete $.onDestroy;
+
+        let on_mount_dispose_fn;
+
         const context = create_new_context();
         const old_context = CORE.context.set_new_context(context);
-        const dispose = template_fn(anchor, !data ? {} : new data(props), slot_fn);
+        const dispose = template_fn(anchor, $, slot_fn);
         CORE.context.set_new_context(old_context);
+
+        if (typeof on_mount_fn === "function") {
+            if (CORE.lifecycle.is_mounted()) {
+                on_mount_dispose_fn = on_mount_fn();
+            } else {
+                CORE.lifecycle.defer_on_mount(on_mount_fn, (fn) => on_mount_dispose_fn = fn);
+            }
+        }
+
         return () => {
+            if (typeof on_mount_dispose_fn === "function") on_mount_dispose_fn();
+            if (typeof on_destroy_fn === "function") on_destroy_fn();
+
             dispose();
             CORE.context.set_new_context(old_context);
         };
@@ -1045,11 +1048,8 @@ function create_proxy(container) {
 /** @type {(template_url:string) => Promise<string>} */
 export const load = (template_url) => fetch(template_url).then((response) => response.text());
 
-/** @type {(obj:any) => Boolean} */
- export const is_object = (obj) => obj && typeof obj === "object";
-
  /** @type {(length:number) => string} */
- export const make_id = (length) => {
+export const make_id = (length) => {
      let result = '';
      const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
      for (var i = 0; i < length; i++) result += characters.charAt(Math.floor(Math.random() * characters.length));
