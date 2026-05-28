@@ -47,6 +47,28 @@ Example:
 </button>
 ```
 
+or with Scope Object 
+
+```html
+<script>
+    import { sfc } from "#/core/parser/handlebar.js";
+    import { signal } from "#/core/runtime.js";
+
+    export default function ($) {
+    
+        $.counter = signal(0);
+        $.name = signal("John");
+        $.onMount = () => console.log("Hello I have been mounted");
+    
+    }
+</script>
+
+<h1>{{ $.count() }}</h1>
+<button on:click="() => $.count.set($.count()+1)">
+    Click Me
+</button>
+```
+
 ---
 
 # Importing Core.js APIs
@@ -54,20 +76,20 @@ Example:
 Inside the `<script>` block you may import runtime APIs:
 
 ```js
-import { signal } from "#/core/runtime.js";
+import { signal } from "../core/runtime.js";
 ```
 
-Core.js uses the `#/` alias for absolute imports because the imported script from object URLs does not have any context of its current file path nor its domain.
+Core.js naively finds the pattern `from "` and injects the current URL path because imported script from object URLs does not have any context of its current URL. 
 
 Example:
 
 ```text
-#/core/runtime.js
+../core/runtime.js
 ↓
-https://localhost:8080/core/runtime.js
+https://localhost:8080/sfc/../core/runtime.js
 ```
 
-This avoids relative import issues caused by runtime Blob module loading.
+Beause of how naive the injection technique is, it is prone to error e.g injecting to a string with the pattern `from "` 
 
 ---
 

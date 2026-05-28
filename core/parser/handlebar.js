@@ -40,10 +40,10 @@ export async function sfc(url) {
 
 /**
 * @param {{ template : string, components : Record<string, Function> }} options
-* @param {Object} Ctx anonymous class that encapsulate data and logic
+* @param {Object | ($:Object, props:Object) => void} data
 */
-export function component(options, Ctx = class { }) {
-    return create_component(options, Ctx, function (source) {
+export function component(options, data = null) {
+    return create_component(options, data, function (source) {
         const blockPattern = /{{#(await|if|each)(.*?)}}|{{\/(await|if|each)}}/gs, stack = [], blocks = [];
         let match;
 

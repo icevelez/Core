@@ -4,10 +4,10 @@
 
     console.log("Hello from Todo");
 
-    export default class {
-        todo_store = todo;
-        todo_completed = () => this.todo_store.state.filter((todo) => todo.done).length;
-        new_todo = signal("");
+    export default function($) {
+        $.todo_store = todo;
+        $.todo_completed = () => this.todo_store.state.filter((todo) => todo.done).length;
+        $.new_todo = signal("");
     }
 </script>
 

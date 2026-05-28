@@ -639,12 +639,14 @@ export function process_components(template, imported_component_id) {
 
 /**
 * @param {{ template : string, components : Record<string, Function> }} options
-* @param {Object} Data object that encapsulate data and logic
+* @param {Object | ($:Object, props:Object) => void} Data object that encapsulate data and logic
 * @param {(template:string) => DocumentFragment} template_processor
 * @returns {(anchor:Node, props:Record<string, any>, slot_fn?:(anchor:Node) => void) => () => void}
 */
 export function create_component(options, Data, template_processor) {
-    if (Data && !Data.toString().startsWith("class")) throw new Error("Data is not a class");
+    if (Data && typeof Data !== "function") throw new Error("Data is not a function");
+
+    const data_fn = new Function('Data', 'props', `${!Data ? 'return Object.create(null);' : Data.toString().startsWith("class") ? 'return new Data(props)' : 'const $ = Object.create(null); Data($, props); return $;'}`);
 
     const components_id = `component-${make_id(6)}`;
     const template = process_components(options.template, components_id);
@@ -653,8 +655,7 @@ export function create_component(options, Data, template_processor) {
     if (options.components && Object.keys(options.components).length > 0) CORE.block_cache.set(components_id, options.components);
 
     return (anchor, props, slot_fn) => {
-        const $ = !Data ? {} : new Data(props);
-
+        const $ = data_fn(Data, props);
         const on_mount_fn = $.onMount;
         const on_destroy_fn = $.onDestroy;
 
