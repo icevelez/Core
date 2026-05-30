@@ -658,9 +658,7 @@ export function create_component(options, Data, template_processor) {
         const $ = data_fn(Data, props);
         const on_mount_fn = $.onMount;
         const on_destroy_fn = $.onDestroy;
-
-        delete $.onMount;
-        delete $.onDestroy;
+        $.onDestroy = $.onMount = undefined;
 
         let on_mount_dispose_fn;
 
@@ -749,9 +747,9 @@ const effect_queue = new Set();
 let is_flushing = false;
 
 function track(dep) {
-    if (!current_effect || dep.has(current_effect)) return;
+    if (!current_effect || dep.has(current_effect)) return true;
     dep.add(current_effect);
-    current_effect.deps.push(dep);
+    current_effect.deps.push(dep);;
 }
 
 function trigger(dep) {
@@ -776,11 +774,13 @@ function trigger_container(container) {
     // trigger own deps
     for (const key in container.deps) trigger(container.deps[key]);
 
+    // THIS PART SEEMS REDUDANT, EVERYTHING SORT OF WORKS WITHOUT THESE LINE
     // recursively trigger children
-    for (const key in container.children) {
-        const child_container = container.children[key];
-        if (child_container) trigger_container(child_container);
-    }
+    // for (const key in container.children) {
+    //     console.log(key);
+    //     const child_container = container.children[key];
+    //     if (child_container) trigger_container(child_container);
+    // }
 }
 
 /**
@@ -870,7 +870,9 @@ export function signal(initial_value) {
     let container = null;
 
     if (is_wrappable(initial_value)) {
-        container = create_container(initial_value);
+        const is_proxy = initial_value[IS_PROXY];
+        if (is_proxy) value = proxy_to_container.get(initial_value).value;
+        container = create_container(value);
         container.proxy = create_proxy(container);
     }
 
@@ -923,12 +925,13 @@ export function signal(initial_value) {
 }
 
 const proxy_to_container = new WeakMap();
+const object_to_container = new WeakMap();
+
 const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
 const map_mutation_keys = new Set(["set", "delete", "clear"]);
 const map_access_keys = new Set(["get", "has", "size"]);
 
 const IS_PROXY = Symbol("is_proxy");
-const CONTAINER = Symbol("container");
 
 export const is_proxy = (object) => typeof object === "object" && object[IS_PROXY];
 const is_wrappable = (v) => v && typeof v === "object" && !(v instanceof Promise);
@@ -945,13 +948,12 @@ function create_container(object) {
 }
 
 function create_proxy(container) {
-    container.value[CONTAINER] = container;
+    object_to_container.set(container.value, container);
     const proxy = new Proxy(container.value, {
         get(target, key) {
             if (key === IS_PROXY) return true;
-            if (key === CONTAINER) return target[key];
 
-            const container = target[CONTAINER];
+            const container = object_to_container.get(target);
 
             if (target instanceof Map || target instanceof Set) {
                 if (map_access_keys.has(key)) return (...args) => {
@@ -962,7 +964,7 @@ function create_proxy(container) {
                     return target[key](...args);
                 }
                 if (map_mutation_keys.has(key)) return (...args) => {
-                    const result = target[key](...args.map((v) => (v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].proxy : v));
+                    const result = target[key](...args.map((v) => (v && typeof v === "object" && v[IS_PROXY]) ? proxy_to_container.get(v).value : v));
                     if (key !== "clear" && !(target instanceof Set && key === "set")) {
                         const get_key = args[0];
                         const dep = container.deps[get_key];
@@ -978,13 +980,12 @@ function create_proxy(container) {
             let dep = container.deps[key];
             if (!dep) dep = container.deps[key] = new Set();
 
-            const value = target[key];
-
+            let value = target[key];
             if (!is_wrappable(value)) {
                 if (typeof value === "function")
                     // Hack to trigger update when mutating an array
                     return (Array.isArray(target)) ? ((...args) => {
-                        const result = target[key](...args.map((v) => (v && typeof v === "object" && v[IS_PROXY]) ? v[CONTAINER].proxy : v));
+                        const result = target[key](...args.map((v) => (v && typeof v === "object" && v[IS_PROXY]) ? proxy_to_container.get(v).value : v));
                         if (array_mutation_keys.has(key)) trigger_container(container);
                         return result;
                     }) : value;
@@ -992,27 +993,30 @@ function create_proxy(container) {
                 return value;
             }
 
-            track(dep);
+            value = value[IS_PROXY] ? proxy_to_container.get(value).value : value;
+
+            // this prevent duplicate proxy creation
+            if (track(dep)) return value;
 
             let child = container.children[key];
             if (!child) {
                 child = container.children[key] = create_container(value);
+                child.proxy = create_proxy(child);
             } else {
                 child.value = value;
             }
-            child.proxy = create_proxy(child);
 
-            return child.proxy || child.value;
+            return child.value;
         },
         set(target, key, value) {
-            const container = target[CONTAINER];
+            const container = object_to_container.get(target);
             const current = target[key];
             const dep = container.deps[key];
 
             if (current === value) return true;
 
-            if (is_wrappable(value) && value[CONTAINER]) {
-                target[key] = value[CONTAINER].proxy;
+            if (is_wrappable(value)) {
+                target[key] = value[IS_PROXY] ? proxy_to_container.get(value).value : value;
                 trigger(dep);
                 return true;
             }
@@ -1025,13 +1029,14 @@ function create_proxy(container) {
             const child = container.children[key];
 
             if (child && is_wrappable(value)) {
-                child[CONTAINER].value = value;
+                const container = object_to_container.get(child);
+                container.value = value;
             }
 
             return true;
         },
         deleteProperty(target, key) {
-            const container = target[CONTAINER];
+            const container = proxy_to_container.get(target);
             delete target[key];
 
             const dep = container.deps[key];
