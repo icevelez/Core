@@ -19,15 +19,9 @@ or using the live-server extension in VSCode
 
 Refer to the documentation folder
 
-## Changelog
-
-- Fixed Memory leak on `#each` rendering
-
 ## To Do
 
 ```
-- Add Component Lifecycle (onMount and onDestroy)
-- Add Context API (setContext and getContext)
 - Add Iterable support for {{#each}} 
 - Add Reactivity support for Map/Set
 ```
