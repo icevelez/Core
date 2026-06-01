@@ -18,10 +18,6 @@ const CORE = {
     IDX_STATE: Symbol(),
     ARR_STATE: Symbol(),
     PRP_STATE: Symbol(),
-    lifecycle: {
-        is_mounted,
-        defer_on_mount,
-    },
     context: {
         create_new_context,
         set_new_context,
@@ -645,7 +641,6 @@ export function process_components(template, imported_component_id) {
 * @param {{ template : string, components : Record<string, Function> }} options
 * @param {Object | ($:Object, props:Object) => void} Data object that encapsulate data and logic
 * @param {(template:string) => DocumentFragment} template_processor
-* @returns {(anchor:Node, props:Record<string, any>, slot_fn?:(anchor:Node) => void) => () => void}
 */
 export function create_component(options, Data, template_processor) {
     if (Data && typeof Data !== "function") throw new Error("Data is not a function");
@@ -672,10 +667,10 @@ export function create_component(options, Data, template_processor) {
         CORE.context.set_new_context(old_context);
 
         if (typeof on_mount_fn === "function") {
-            if (CORE.lifecycle.is_mounted()) {
+            if (context[IS_MOUNTED]) {
                 on_mount_dispose_fn = on_mount_fn();
             } else {
-                CORE.lifecycle.defer_on_mount(on_mount_fn, (fn) => on_mount_dispose_fn = fn);
+                context[DEFER_MOUNT_FNS].push([on_mount_fn, (fn) => on_mount_dispose_fn = fn]);
             }
         }
 
@@ -716,22 +711,28 @@ export function get_context(key) {
 
 // LIFECYCLE API
 
-const mount_fns = [];
+const IS_MOUNTED = Symbol("is_mounted");
+const DEFER_MOUNT_FNS = Symbol("defer_mount_fns");
 
-let mounted = false;
-
-function is_mounted() {
-    return mounted;
-}
-
-function defer_on_mount(...args) {
-    mount_fns.push(args);
-}
-
+/**
+ * @param {CoreComponent} app
+ * @param {HTMLElement} target
+ * @returns {() => void} dispose function
+ */
 export function mount(app, target) {
+    const context = create_new_context();
+
+    context[IS_MOUNTED] = false;
+    context[DEFER_MOUNT_FNS] = [];
+
+    CORE.context.set_new_context(context);
     const dispose = app(target);
-    for (const [fn, cb] of mount_fns) cb(fn());
-    mounted = true;
+
+    for (const [fn, cb] of context[DEFER_MOUNT_FNS]) cb(fn());
+
+    context[DEFER_MOUNT_FNS].length = 0;
+    context[IS_MOUNTED] = true;
+
     return dispose;
 }
 
@@ -750,12 +751,18 @@ let current_effect = null;
 const effect_queue = new Set();
 let is_flushing = false;
 
+/**
+ * @param {Set<Function>} dep
+ */
 function track(dep) {
     if (!current_effect || dep.has(current_effect)) return;
     dep.add(current_effect);
     current_effect.deps.push(dep);
 }
 
+/**
+ * @param {Set<Function>} dep
+ */
 function trigger(dep) {
     for (const effect_fn of dep) effect_queue.add(effect_fn);
 
@@ -774,6 +781,9 @@ function trigger(dep) {
     });
 }
 
+/**
+ * @param {Container} container
+ */
 function trigger_container(container) {
     for (const key in container.deps) trigger(container.deps[key]);
 }
@@ -935,6 +945,8 @@ const CONTAINER = Symbol("container");
 export const is_proxy = (o) => o && typeof o === "object" && o[IS_PROXY];
 const is_plain_object = (v) => v && typeof v === 'object' && ((Object.getPrototypeOf(v) === null || Object.getPrototypeOf(v) === Object.prototype) || Array.isArray(v));
 
+/** @typedef {ReturnType<typeof create_container>} Container */
+
 function create_container(object) {
     return {
         value: object,
@@ -943,6 +955,9 @@ function create_container(object) {
     };
 }
 
+/**
+ * @param {Container} container
+ */
 function create_proxy(container) {
     return new Proxy(container.value, {
         get(target, key) {

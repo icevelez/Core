@@ -7,6 +7,12 @@
             this.props = props;
         }
 
+        onMount = () => {
+            console.log("PropsSlotExample on mount");
+            return () => {
+                console.log("PropsSlotExample on mount disposal");
+            }
+        }
     }
 </script>
 
