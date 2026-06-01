@@ -66,13 +66,26 @@
 
     class Item {
         id = rowId++;
-        label = `${adjectives[_random(adjectives.length)]} ${colours[_random(colours.length)]} ${nouns[_random(nouns.length)]}`;
+        #label = signal(`${adjectives[_random(adjectives.length)]} ${colours[_random(colours.length)]} ${nouns[_random(nouns.length)]}`);
+
+        get label() {
+            return this.#label();
+        };
+
+        set label(v) {
+            this.#label.set(v);
+            return true;
+        }
     }
 
     function buildData(count = 1000) {
         const data = new Array(count);
         for (let i = 0; i < count; i++) {
-            data[i] = new Item();
+            // data[i] = new Item();
+            data[i] = {
+                id : rowId++,
+                label : `${adjectives[_random(adjectives.length)]} ${colours[_random(colours.length)]} ${nouns[_random(nouns.length)]}`,
+            }
         }
         return data;
     }
