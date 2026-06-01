@@ -737,7 +737,7 @@ export function mount(app, target) {
 
 // REACTIVITY
 
-let is_debugger_on = true;
+let is_debugger_on = false;
 
 /** @type {Function[]} */
 let effect_stack = [];

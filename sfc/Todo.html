@@ -6,7 +6,7 @@
 
     export default function($) {
         $.todo_store = todo;
-        $.todo_completed = () => this.todo_store.state.filter((todo) => todo.done).length;
+        $.todo_completed = () => $.todo_store.state.filter((todo) => todo.done).length;
         $.new_todo = signal("");
     }
 </script>
@@ -18,7 +18,7 @@
     </button>
 </div>
 <div>
-    <h2>Completed: {{ $.todo_completed() }}</h2>
+    <h2>Completed: {{ $.todo_completed() }} / {{ $.todo_store.state.length }}</h2>
     {{#each $.todo_store.state as { todo, done }, i}}
         <div>
             <label style="display: flex; gap: 0.5rem; user-select: none;">
