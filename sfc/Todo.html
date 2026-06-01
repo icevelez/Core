@@ -22,7 +22,7 @@
     {{#each $.todo_store.state as { todo, done }, i}}
         <div>
             <label style="display: flex; gap: 0.5rem; user-select: none;">
-                <input type="checkbox" on:click="() => $.todo_store.toggle_todo($.i)"/>
+                <input type="checkbox" :checked="$.done" on:click="() => $.todo_store.toggle_todo($.i)"/>
                 <p>{{ $.todo }}{{ $.done ? ' ✅ ' : '' }}</p>
             </label>
             <button on:click="() => $.todo_store.remove_todo($.i)">Remove</button>

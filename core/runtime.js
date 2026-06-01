@@ -51,8 +51,8 @@ const CORE = {
         if (property === "value") {
             node.nodeValue = value;
         } else if (property === "checked") {
-            node.checked = value === "true";
-            node.setAttribute(property, value === "true" ? "" : value);
+            node.checked = value === "true" || value === true;
+            node.setAttribute(property, node.checked ? "" : value);
         } else if (value === "false" || !value) {
             node.removeAttribute(property);
         } else {
