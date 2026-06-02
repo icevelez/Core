@@ -564,7 +564,7 @@ ${
 }${
     (processes.use_directives.length > 0 ? '\n\n\t// USE DIRECTIVE\n\t' : '') +
     processes.use_directives.map((directive, i) => {
-        return `dispose_fns[${++dispose_fn_i}] = $.${directive.func_name}(child${directive.child_index}, (${directive.expr}))`;
+        return `dispose_fns[${++dispose_fn_i}] = $.${directive.func_name}(child${directive.child_index}, (${directive.expr})) || (() => {})`;
     }).join("\n\t")
 }${
     processes.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <Core:slot/>
