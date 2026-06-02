@@ -1,7 +1,7 @@
 /** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Processes */
 
-/** @typedef {(anchor:Node, $:any, slot_fn:Function) => (() => void)} CoreBlock returns a function to dispose any event and reactive effect */
-/** @typedef {(anchor:Node, props:Record<string, any>, slot_fn:Function) => (() => void)} CoreComponent returns a function to dispose any event and reactive effect */
+/** @typedef {(anchor:Node, $:any, slot_fn:Function) => (() => void)} CoreBlock the compiled render function which returns a function to dispose any event and reactive effect */
+/** @typedef {(anchor:Node, props:Record<string, any>, slot_fn:Function) => (() => void)} CoreComponent the function that wraps both the data and render function */
 
 /** @typedef {{ fns : Function[], exprs : string[] }} IfBlock */
 /** @typedef {{ fn : Function, empty_fn : Function, expr : string, key : string, keys?: string[], index_key?:string }} EachBlock */
@@ -441,7 +441,8 @@ function process_node(node, node_index = [], processes = { children: [], events:
     return processes;
 }
 
-const resolve_child_node = (i, i_arr = []) => `.childNodes[${i}]` + ((i_arr.length <= 0) ? '' : resolve_child_node(i_arr.splice(0, 1), i_arr));
+/** @type {(nums:number[]) => string} */
+const resolve_child_node = (nums = []) => `.childNodes[${nums.shift() || 0}]` + ((nums.length <= 0) ? '' : resolve_child_node(nums));
 
 /**
  * @param {string} key
@@ -478,8 +479,7 @@ export function compile_template(fragment) {
         fragment = templateEl.content;
     }
 
-    // Call "remove_whitespace_nodes" before processing any node because in production text nodes are used as anchor points for block rendering
-    remove_whitespace_nodes(fragment)
+    remove_whitespace_nodes(fragment) // this should be executed before processing any template to prevent empty text nodes that are used as anchor points for rendering to be mistakenly removed
 
     let dispose_fn_i = -1;
 
@@ -490,8 +490,7 @@ export function compile_template(fragment) {
     /** @type {CoreBlock} */
     const func = new Function('anchor', '$', 'slot_fn',
     `\tconst CORE = window.__core__;
-    const frag = CORE.fragment_cache[${fragment_cache_index}];
-    const fragment = frag.cloneNode(true);
+    const fragment = CORE.fragment_cache[${fragment_cache_index}].cloneNode(true);
 
     const node_start = fragment.firstChild;
     const node_end = fragment.lastChild;
@@ -502,7 +501,7 @@ export function compile_template(fragment) {
 ${
     (processes.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
     processes.children.map((child, i) => {
-        return `const child${i} = fragment${resolve_child_node(child.splice(0, 1)[0] || 0, child)};`;
+        return `const child${i} = fragment${resolve_child_node(child)};`;
     }).join("\n\t")
 }${
     (processes.text_funcs.length > 0 || processes.attr_funcs.length > 0) ? `\n
@@ -587,8 +586,6 @@ ${
 
         CORE.remove_nodes(parent_node, node_start, node_end);
     }`);
-
-    // console.log(func);
 
     return func;
 }
