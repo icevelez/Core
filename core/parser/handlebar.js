@@ -80,7 +80,7 @@ export function component(options, data = null) {
 }
 
 const RE = {
-    each: /{{#each\s+(.+?)\s+as\s+((?:\w+|\{[\s\S]*?\}|\([\s\S]*?\)))\s*(?:,\s*(\w+))?}}([\s\S]*?){{\/each}}/g,
+    each: /{{#each\s+(.+?)\s+as\s+((?:\w+|\{[\s\S]*?\}|\[[\s\S]*?\]|\([\s\S]*?\)))\s*(?:,\s*(\w+))?}}([\s\S]*?){{\/each}}/g,
     if: /{{#if\s+(.+?)}}([\s\S]*?){{\/if}}/g,
     else: /{{:else\s+if\s+(.+?)}}|{{:else}}/g,
     await: /{{#await\s+(.+?)}}([\s\S]*?){{\/await}}/g,
@@ -136,6 +136,7 @@ const parse = {
             else_fn: parts[1] ? compile_template(parts[1]) : undefined,
             key: trimmedVar,
             keys: trimmedVar.startsWith("{") || trimmedVar.startsWith("[") ? trimmedVar.slice(1, -1).split(",").map(v => v.trim()) : [],
+            is_keys_from_array: trimmedVar.startsWith("["),
             index_key: indexVar?.trim() || "",
         };
     },

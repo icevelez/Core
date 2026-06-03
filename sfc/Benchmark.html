@@ -79,9 +79,11 @@
     }
 
     function buildData(count = 1000) {
-        const data = new Array(count);
+        // const data = new Array(count);
+        const data = new Map();
         for (let i = 0; i < count; i++) {
-            data[i] = new Item();
+            data.set(i, new Item());
+            // data[i] = new Item();
             // data[i] = {
             //     id : rowId++,
             //     label : `${adjectives[_random(adjectives.length)]} ${colours[_random(colours.length)]} ${nouns[_random(nouns.length)]}`,
@@ -113,7 +115,8 @@
         clear = () => {
             console.time('clear');
             // this.data.set([])
-            this.data().length = 0;
+            // this.data().length = 0;
+            this.data().clear();
             requestAnimationFrame(() => {
                 console.timeEnd('clear');
             });
@@ -154,6 +157,7 @@
 
             requestAnimationFrame(() => {
                 console.timeEnd('runLots');
+                window.__data = this.data();
                 // const e = (new Date()).getTime()
                 // alert(`${e - n}ms`);
             })

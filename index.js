@@ -1,5 +1,5 @@
 import { sfc } from "./core/parser/handlebar.js";
-import { mount } from "./core/runtime.js";
+import { mount, signal } from "./core/runtime.js";
 
 // import App from "./src/App.js";
 // mount(App, document.getElementById("app"));

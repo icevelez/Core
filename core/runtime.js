@@ -4,7 +4,7 @@
 /** @typedef {(anchor:Node, props:Record<string, any>, slot_fn:Function) => (() => void)} CoreComponent the function that wraps both the data and render function */
 
 /** @typedef {{ fns : Function[], exprs : string[] }} IfBlock */
-/** @typedef {{ fn : Function, empty_fn : Function, expr : string, key : string, keys?: string[], index_key?:string }} EachBlock */
+/** @typedef {{ fn : Function, empty_fn : Function, expr : string, key : string, keys?: string[], is_keys_from_array?: boolean, index_key?:string }} EachBlock */
 /** @typedef {{ pending_fn:Function, then_fn?: Function, then_key?:string, catch_fn?: Function, catch_key?:string, expr : string }} AwaitBlock */
 /** @typedef {{ props : Record<string, string>, dynamic_props : { key:string, expr : string }[] }} PropsBlock */
 /** @typedef {CoreBlock} SlotBlock */
@@ -197,6 +197,8 @@ const CORE = {
             }
 
             const new_each_dispose_blocks = [];
+            const is_arr_map = arr instanceof Map;
+            const is_arr_set = arr instanceof Set;
 
             let i = -1;
             for (const ar of arr) {
@@ -208,7 +210,7 @@ const CORE = {
                 }
 
                 const $ = Object.create($sub);
-                $[CORE.IDX_STATE] = i;
+                $[CORE.IDX_STATE] = is_arr_map ? ar[0] : is_arr_set ? ar : i;
 
                 const dispose = each_block.fn(fragment, $);
                 new_each_dispose_blocks.push(dispose);
@@ -276,6 +278,12 @@ const CORE = {
 
             promise.then(([value, error]) => {
                 if (last_id !== curr_id) return;
+                if (error) console.error(error);
+
+                pending_dispose_fn();
+                pending_dispose_fn = null;
+
+                if ((error && !await_block.catch_fn) || (!error && !await_block.then_fn)) return;
 
                 const $sub = Object.create($);
                 if (!error && await_block.then_key) $sub[await_block.then_key] = value;
@@ -285,8 +293,6 @@ const CORE = {
                 dispose_fn = (error ? await_block.catch_fn : await_block.then_fn)(fragment, $sub);
                 CORE.context.set_new_context(old_context);
 
-                pending_dispose_fn();
-                pending_dispose_fn = null;
                 anchor.before(fragment);
             })
 
@@ -537,7 +543,7 @@ ${
             return `dispose_fns[${++dispose_fn_i}] = CORE.each(child${block.child_index}, $, "${block.id}", (() => ${block_data.expr}), {
         ${
             block_data.keys && block_data.keys.length > 0 ?
-                `${block_data.keys.map((key) => `${key} : { get() { return this[CORE.ARR_STATE][this[CORE.IDX_STATE]].${key} }, set(v) { this[CORE.ARR_STATE][this[CORE.IDX_STATE]].${key} = v; } }`).join(",\n\t\t")}` :
+                `${block_data.keys.map((key, i) => `${key} : { get() { return this[CORE.ARR_STATE][this[CORE.IDX_STATE]]${block_data.is_keys_from_array ? `[${i}]` : `.${key}`} }, set(v) { this[CORE.ARR_STATE][this[CORE.IDX_STATE]]${block_data.is_keys_from_array ? `[${i}]` : `.${key}`} = v; } }`).join(",\n\t\t")}` :
                 `${block_data.key} : { get() { return this[CORE.ARR_STATE][this[CORE.IDX_STATE]] }, set(v) { this[CORE.ARR_STATE][this[CORE.IDX_STATE]] = v; } }`
         }${
             block_data.index_key ? `,\n\t\t${block_data.index_key} : { get() { return this[CORE.IDX_STATE]; } }` : ''
@@ -586,6 +592,8 @@ ${
 
         CORE.remove_nodes(parent_node, node_start, node_end);
     }`);
+
+    console.log(func);
 
     return func;
 }
@@ -935,11 +943,12 @@ export function signal(initial_value) {
 }
 
 const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
+const map_mutation_keys = new Set(["set", "delete", "clear"]);
 
 const IS_PROXY = Symbol("proxy");
 const CONTAINER = Symbol("container");
 
-const is_plain_object = (v) => v && typeof v === 'object' && ((Object.getPrototypeOf(v) === null || Object.getPrototypeOf(v) === Object.prototype) || Array.isArray(v));
+const is_plain_object = (v) => v && typeof v === 'object' && ((Object.getPrototypeOf(v) === null || Object.getPrototypeOf(v) === Object.prototype) || Array.isArray(v) || v instanceof Map || v instanceof Set);
 
 /** @typedef {ReturnType<typeof create_container>} Container */
 
@@ -960,8 +969,47 @@ function create_proxy(container) {
             if (key === IS_PROXY) return true;
             if (key === CONTAINER) return container;
 
-            const value = container.value[key];
+            let value = container.value[key];
             const dep = container.deps[key] || (container.deps[key] = new Set());
+
+            if (target instanceof Map) {
+                if (key === "set") return (k, v) => {
+                    const result = target.set(k, v);
+                    const dep = container.deps[k] || (container.deps[k] = new Set());
+                    trigger(dep);
+                    return result;
+                }
+                if (key === "clear") return () => {
+                    trigger(dep);
+                    trigger_container(container);
+                    return target[key];
+                }
+                if (key in Map.prototype || key === "size" || key === "length") return (...args) => {
+                    track(dep);
+                    return target[key](...args);
+                };
+                const int_key = parseInt(key);
+                value = target.get(`${int_key}` === key ? int_key : key);
+            }
+
+            if (target instanceof Set) {
+                if (key === "set") return (v) => {
+                    const result = target.set(v);
+                    trigger_container(container);
+                    return result;
+                }
+                if (key === "clear") return () => {
+                    trigger(dep);
+                    trigger_container(container);
+                    return target[key];
+                }
+                if (key in Set.prototype || key === "size" || key === "length") return (...args) => {
+                    track(dep);
+                    return target[key](...args);
+                };
+                const int_key = parseInt(key);
+                value = target.get(`${int_key}` === key ? int_key : key);
+            }
 
             if (!is_plain_object(value)) {
                 if (typeof value !== "function") {
@@ -1004,6 +1052,25 @@ function create_proxy(container) {
         },
         set(target, key, value) {
             const dep = container.deps[key];
+
+            if (target instanceof Map || target instanceof Set) {
+                if (key in Set.prototype || key in Map.prototype) return false;
+
+                if (map_mutation_keys.has(key)) return (...args) => {
+                    target[key](...args);
+                    trigger(dep);
+                    if (key === "clear") trigger_container(container);
+                }
+
+                const int_key = parseInt(key);
+                key = `${int_key}` === key ? int_key : key;
+
+                const old = target.get(key);
+                if (old === value) return true;
+                target.set(key, value);
+                trigger(dep);
+                return true;
+            }
 
             if (target[key] === value) return true;
 
