@@ -33,8 +33,8 @@ Example:
 
 ```html
 <script>
-    import { sfc } from "#/core/parser/handlebar.js";
-    import { signal } from "#/core/runtime.js";
+    import { sfc } from "./core/parser/handlebar.js";
+    import { signal } from "./core/runtime.js";
 
     export default class {
         count = signal(0);
@@ -51,8 +51,8 @@ or with Scope Object
 
 ```html
 <script>
-    import { sfc } from "#/core/parser/handlebar.js";
-    import { signal } from "#/core/runtime.js";
+    import { sfc } from "./core/parser/handlebar.js";
+    import { signal } from "./core/runtime.js";
 
     export default function ($) {
     
@@ -79,17 +79,17 @@ Inside the `<script>` block you may import runtime APIs:
 import { signal } from "../core/runtime.js";
 ```
 
-Core.js naively finds the pattern `from "` and injects the current URL path because imported script from object URLs does not have any context of its current URL. 
+Core.js naively finds the pattern `from "-------.js"` and injects the current URL path because imported script from object URLs does not have any context of its current URL. 
 
 Example:
 
 ```text
-../core/runtime.js
+from "../core/runtime.js"
 ↓
-https://localhost:8080/sfc/../core/runtime.js
+from "https://localhost:8080/sfc/../core/runtime.js"
 ```
 
-Beause of how naive the injection technique is, it is prone to error e.g injecting to a string with the pattern `from "` 
+Beause of how naive the injection technique is, it is prone to error e.g injecting to a string with the pattern `from "-------.js"` that isn't a top level import/export
 
 ---
 

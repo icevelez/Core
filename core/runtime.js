@@ -939,7 +939,6 @@ const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","so
 const IS_PROXY = Symbol("proxy");
 const CONTAINER = Symbol("container");
 
-export const is_proxy = (o) => o && typeof o === "object" && o[IS_PROXY];
 const is_plain_object = (v) => v && typeof v === 'object' && ((Object.getPrototypeOf(v) === null || Object.getPrototypeOf(v) === Object.prototype) || Array.isArray(v));
 
 /** @typedef {ReturnType<typeof create_container>} Container */

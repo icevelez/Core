@@ -24,7 +24,7 @@ export async function sfc(url) {
     if (!script) return component({ template });
 
     const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
-    const script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+)["']?/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
+    const script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
     const script_blob = new Blob([script_content], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
     const { default: ctx, ...component_promises } = await import(script_url);
