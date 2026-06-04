@@ -18,10 +18,6 @@ const CORE = {
     IDX_STATE: Symbol(),
     ARR_STATE: Symbol(),
     PRP_STATE: Symbol(),
-    context: {
-        create_new_context,
-        set_new_context,
-    },
     effect,
     is_signal,
     /** @type {DocumentFragment[]} */
@@ -119,7 +115,7 @@ const CORE = {
      * @param {string} id
      * @param {(($:any) => Boolean)[]} condition_fns
      */
-    if: (anchor, $, id, condition_fns) => {
+    if: function (anchor, $, id, condition_fns) {
         const fragment = document.createDocumentFragment();
         const if_block = CORE.block_cache.get(id);
         const fns = if_block.fns;
@@ -159,7 +155,7 @@ const CORE = {
      * @param {() => any[]} arr_fn
      * @param {Object} descriptor
      */
-    each: (anchor, $, id, arr_fn, descriptor) => {
+    each: function (anchor, $, id, arr_fn, descriptor) {
         let else_block_dispose_fn = null;
         let existing_dispose_blocks = [];
 
@@ -281,9 +277,9 @@ const CORE = {
                 if (!error && await_block.then_key) $sub[await_block.then_key] = value;
                 if (error && await_block.catch_key) $sub[await_block.catch_key] = error;
 
-                const old_context = CORE.context.set_new_context(context);
+                const old_context = set_new_context(context);
                 dispose_fn = (error ? await_block.catch_fn : await_block.then_fn)(fragment, $sub);
-                CORE.context.set_new_context(old_context);
+                set_new_context(old_context);
 
                 pending_dispose_fn();
                 pending_dispose_fn = null;
@@ -296,7 +292,7 @@ const CORE = {
         return () => {
             dispose_fn();
             effect_dispose();
-            CORE.context.set_new_context(context);
+            set_new_context(context);
         }
     },
     /**
@@ -659,9 +655,9 @@ export function create_component(options, Data, template_processor) {
         let on_mount_dispose_fn;
 
         const context = create_new_context();
-        const old_context = CORE.context.set_new_context(context);
+        const old_context = set_new_context(context);
         const dispose = template_fn(anchor, $, slot_fn);
-        CORE.context.set_new_context(old_context);
+        set_new_context(old_context);
 
         if (typeof on_mount_fn === "function") {
             if (context[IS_MOUNTED]) {
@@ -676,7 +672,7 @@ export function create_component(options, Data, template_processor) {
             if (typeof on_destroy_fn === "function") on_destroy_fn();
 
             dispose();
-            CORE.context.set_new_context(old_context);
+            set_new_context(old_context);
         };
     };
 }
@@ -722,7 +718,7 @@ export function mount(app, target) {
     context[IS_MOUNTED] = false;
     context[DEFER_MOUNT_FNS] = [];
 
-    CORE.context.set_new_context(context);
+    set_new_context(context);
     const dispose = app(target);
 
     for (const [fn, cb] of context[DEFER_MOUNT_FNS]) cb(fn());
