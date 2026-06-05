@@ -18,6 +18,11 @@ const CORE = {
     IDX_STATE: Symbol(),
     ARR_STATE: Symbol(),
     PRP_STATE: Symbol(),
+    context: {
+        get_current_context,
+        is_mounted : () => IS_MOUNTED,
+        defer_mount : () => DEFER_MOUNT_FNS,
+    },
     effect,
     is_signal,
     /** @type {DocumentFragment[]} */
@@ -479,6 +484,7 @@ export function compile_template(fragment) {
 
     let dispose_fn_i = -1;
 
+    const style_id = process_style(fragment);
     const processes = process_node(fragment);
     const fragment_cache_index = CORE.fragment_cache.length;
     CORE.fragment_cache.push(fragment);
@@ -568,6 +574,16 @@ ${
         dispose_fns[${++dispose_fn_i}] = slot_fn(fragment);
         child${processes.slot_child_index}.before(fragment);
     }` : ''
+}${
+    style_id ? `\n\n\t// SCOPE CSS USING "@scope"
+    const scoped_style = CORE.block_cache.get("${style_id}");
+    document.head.append(scoped_style);
+    const context = CORE.context.get_current_context();
+    if (context[CORE.context.is_mounted()])
+        node_start.parentNode.setAttribute("${style_id}", "");
+    else
+        context[CORE.context.defer_mount()].push([() => node_start.parentNode.setAttribute("${style_id}", ""), () => {}])
+    ` : ''
 }
 
     anchor.append(fragment);
@@ -581,9 +597,36 @@ ${
         if (!parent_node) return;
 
         CORE.remove_nodes(parent_node, node_start, node_end);
+        console.log("DISPOSAL:", "${style_id}");
+${
+    style_id ? `
+        scoped_style?.parentNode.removeChild(scoped_style);
+        parent_node.removeAttribute("${style_id}");` : ''
+}
     }`);
 
+    console.log(func);
+
     return func;
+}
+
+function process_style(fragment) {
+    let style = "";
+
+    for (const node of fragment.childNodes) {
+        if (node instanceof HTMLStyleElement) {
+            style += `${node.innerText}\n`;
+            fragment.removeChild(node);
+        }
+    }
+
+    const style_id = `scope-${make_id(6)}`;
+    const style_el = document.createElement("style");
+    style_el.innerText = `@scope ([${style_id}]) { \n\t${style}\n\t }`;
+
+    CORE.block_cache.set(style_id, style_el);
+
+    return style ? style_id : null;
 }
 
 /**
@@ -683,6 +726,10 @@ window.__core__ = CORE;
 
 const root_context = Object.create(null);
 let current_context = root_context;
+
+function get_current_context() {
+    return current_context;
+}
 
 function create_new_context() {
     return Object.create(current_context);
