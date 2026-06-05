@@ -947,77 +947,86 @@ function create_container(object) {
     };
 }
 
-/**
- * @param {Container} container
- */
-function create_proxy(container) {
-    return new Proxy(container.value, {
-        get(target, key) {
-            if (key === IS_PROXY) return true;
-            if (key === CONTAINER) return container;
+// TEST REACTIVITY
 
-            const value = container.value[key];
-            const dep = container.deps[key] || (container.deps[key] = new Set());
+const containers = new WeakMap();
+const handler = {
+    get(_, key, receiver) {
+        const container = containers.get(receiver);
 
-            if (!is_plain_object(value)) {
-                if (typeof value !== "function") {
-                    track(dep);
-                    return value;
-                }
+        if (key === IS_PROXY) return true;
+        if (key === CONTAINER) return container;
 
-                if (!Array.isArray(target)) return value;
+        const target = container.value;
+        const value = target[key];
+        const dep = container.deps[key] || (container.deps[key] = new Set());
 
-                // Trigger update when target is an array and is being mutated
-                return (...args) => {
-                    const result = target[key](...args);
-
-                    if (!array_mutation_keys.has(key)) return result;
-
-                    trigger(dep);
-                    trigger_container(container);
-
-                    return result;
-                }
+        if (!is_plain_object(value)) {
+            if (typeof value !== "function") {
+                track(dep);
+                return value;
             }
 
-            track(dep);
+            if (!Array.isArray(target)) return value;
 
-            let child_container = container.child_containers[key];
-            if (child_container) {
-                if (child_container.value !== value) {
-                    child_container.value = value;
-                    child_container.proxy = create_proxy(child_container);
-                }
-                return child_container.proxy;
+            // Trigger update when target is an array and is being mutated
+            return (...args) => {
+                const result = target[key](...args);
+
+                if (!array_mutation_keys.has(key)) return result;
+
+                trigger(dep);
+                trigger_container(container);
+
+                return result;
             }
-
-            child_container = create_container(value);
-            child_container.proxy = create_proxy(child_container);
-
-            container.child_containers[key] = child_container;
-
-            return child_container.proxy;
-        },
-        set(target, key, value) {
-            const dep = container.deps[key];
-
-            if (target[key] === value) return true;
-
-            target[key] = value;
-
-            trigger(dep);
-
-            return true;
-        },
-        deleteProperty(target, key) {
-            delete target[key];
-
-            const dep = container.deps[key];
-            if (dep) trigger(dep);
-
-            return true;
         }
-    });
+
+        track(dep);
+
+        let child_container = container.child_containers[key];
+        if (child_container) return child_container.proxy;
+
+        child_container = create_container(value);
+        child_container.proxy = create_proxy(child_container);
+
+        container.child_containers[key] = child_container;
+
+        return child_container.proxy;
+    },
+    set(_, key, value, receiver) {
+        const container = containers.get(receiver);
+        const dep = container.deps[key];
+        const target = container.value;
+
+        if (target[key] === value) return true;
+
+        target[key] = value;
+
+        trigger(dep);
+
+        return true;
+    },
+    deleteProperty(_, key, receiver) {
+        const container = containers.get(receiver);
+        const target = container.value;
+
+        const result = delete target[key];
+
+        const dep = container.deps[key];
+        if (dep) trigger(dep);
+
+        return result;
+    }
+};
+
+const object_proxy = new Proxy({}, handler);
+const array_proxy = new Proxy({}, handler);
+
+function create_proxy(obj = {}) {
+    const proxy = Object.create(Array.isArray(obj.value) ? array_proxy : object_proxy);
+    containers.set(proxy, obj);
+    return proxy;
 }
 
 // HELPER FUNCTIONS
