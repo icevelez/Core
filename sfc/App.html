@@ -1,14 +1,11 @@
 <script>
     import { sfc } from "../core/parser/handlebar.js";
     import { signal } from "../core/runtime.js";
-    import { Router } from "../lib/router.js";
 
     export const PropSlotExample = sfc("/sfc/PropSlotExample.html");
     export const Todo = sfc("sfc/Todo.html");
 
     export default class {
-
-        Router = Router;
 
         name = signal("John");
         count = signal(0);
@@ -19,13 +16,13 @@
     }
 </script>
 
-{{#if $.Router.match("/benchmark").is_match}}
+{{#if Router.match("/benchmark").is_match}}
     {{#await sfc("sfc/Benchmark.html")}}
         <h1>Loading Benchmark</h1>
     {{:then Benchmark}}
         <Core:component default="Benchmark"/>
     {{/await}}
-{{:else if $.Router.match("/todo").is_match}}
+{{:else if Router.match("/todo").is_match}}
     <Todo/>
 {{:else}}
     <button use:myaction="'Hello'" on:click="() => $.count.set($.count()+1)">Count: {{ $.count() }}</button>

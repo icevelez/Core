@@ -14,11 +14,12 @@
 
 const CORE = {
     version: "0.4.0",
-    show_anchor_blocks : true, // flag to use comment node instead of text node as anchor, good for debugging
+    show_anchor_blocks: true, // flag to use comment node instead of text node as anchor, good for debugging
     IDX_STATE: Symbol(),
     ARR_STATE: Symbol(),
     PRP_STATE: Symbol(),
     effect,
+    core_modules: {},
     is_signal,
     /** @type {DocumentFragment[]} */
     fragment_cache: [],
@@ -491,6 +492,8 @@ export function compile_template(fragment) {
     const node_start = fragment.firstChild;
     const node_end = fragment.lastChild;
 
+    const { ${Object.keys(CORE.core_modules).join(",")} } = CORE.core_modules;
+
     /** @type {Function[]} */
     const dispose_fns = [];
 
@@ -582,6 +585,8 @@ ${
 
         CORE.remove_nodes(parent_node, node_start, node_end);
     }`);
+
+    console.log(func);
 
     return func;
 }
@@ -868,7 +873,7 @@ export function signal(initial_value) {
     let container = null;
     let proxy = null;
 
-    if (is_plain_object(initial_value)) {
+    if (is_valid_object(initial_value)) {
         const is_proxy = initial_value[IS_PROXY];
         if (is_proxy) value = initial_value[CONTAINER].value;
         container = create_container(value);
@@ -886,7 +891,7 @@ export function signal(initial_value) {
      * @param {T} new_value
      */
     read.set = (new_value) => {
-        if (is_plain_object(new_value)) {
+        if (is_valid_object(new_value)) {
             const is_proxy = new_value[IS_PROXY];
             const real_value = is_proxy ? new_value[CONTAINER].value : new_value;
 
@@ -935,7 +940,7 @@ const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","so
 const IS_PROXY = Symbol("proxy");
 const CONTAINER = Symbol("container");
 
-const is_plain_object = (v) => v && typeof v === 'object' && ((Object.getPrototypeOf(v) === null || Object.getPrototypeOf(v) === Object.prototype) || Array.isArray(v));
+const is_valid_object = (v) => v && typeof v === 'object' && ((Object.getPrototypeOf(v) === null || Object.getPrototypeOf(v) === Object.prototype) || Array.isArray(v));
 
 /** @typedef {ReturnType<typeof create_container>} Container */
 
@@ -959,7 +964,7 @@ function create_proxy(container) {
             const value = container.value[key];
             const dep = container.deps[key] || (container.deps[key] = new Set());
 
-            if (!is_plain_object(value)) {
+            if (!is_valid_object(value)) {
                 if (typeof value !== "function") {
                     track(dep);
                     return value;
@@ -1019,6 +1024,19 @@ function create_proxy(container) {
         }
     });
 }
+
+// GLOBAL MODULE
+
+let is_modules_set = false;
+
+export const global = Object.freeze({
+    set_modules: (modules) => {
+        if (!modules || typeof modules !== "object" || !(Object.getPrototypeOf(modules) === null || Object.getPrototypeOf(modules) === Object.prototype)) throw "modules is an invalid object";
+        if (is_modules_set) throw "You can only set modules once"; // why? because setting dynamic modules would throw off the compiled render function
+        is_modules_set = true;
+        CORE.core_modules = modules;
+    }
+})
 
 // HELPER FUNCTIONS
 
