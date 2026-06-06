@@ -23,7 +23,6 @@
         <CoreComponent default="Benchmark"></CoreComponent>
     {{/await}}
 {{:else if $.Router.match("/todo").is_match}}
-    <Todo/>
     {{#await sfc("sfc/Todo.html")}}
         <h1>Loading Todo</h1>
     {{:then Todo}}

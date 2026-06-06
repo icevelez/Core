@@ -1,4 +1,4 @@
-/** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Processes */
+/** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Instruction */
 
 /** @typedef {(anchor:Node, $:any, slot_fn:Function) => (() => void)} CoreBlock the compiled render function which returns a function to dispose any event and reactive effect */
 /** @typedef {(anchor:Node, props:Record<string, any>, slot_fn:Function) => (() => void)} CoreComponent the function that wraps both the data and render function */
@@ -138,8 +138,12 @@ const CORE = {
             if (dispose) dispose();
             if (!curr_fn) return;
 
-            dispose = curr_fn(fragment, $);
-            anchor.before(fragment);
+            try {
+                dispose = curr_fn(fragment, $);
+                anchor.before(fragment);
+            } catch (error) {
+                console.trace(error);
+            }
         }, { track_inner_effect: false })
 
         return () => {
@@ -168,56 +172,60 @@ const CORE = {
         anchor.before(start_node);
 
         const effect_dispose = CORE.effect(() => {
-            const arr = arr_fn();
+            try {
+                const arr = arr_fn();
 
-            $sub[CORE.ARR_STATE] = arr;
+                $sub[CORE.ARR_STATE] = arr;
 
-            if (!arr || arr?.length <= 0) {
-                if (existing_dispose_blocks.length > 0) {
-                    const parent_node = anchor.parentNode;
-                    CORE.remove_nodes(parent_node, start_node.nextSibling, anchor.previousSibling);
+                if (!arr || arr?.length <= 0) {
+                    if (existing_dispose_blocks.length > 0) {
+                        const parent_node = anchor.parentNode;
+                        CORE.remove_nodes(parent_node, start_node.nextSibling, anchor.previousSibling);
+                    }
+
+                    for (const dispose of existing_dispose_blocks) dispose();
+                    existing_dispose_blocks.length = 0;
+
+                    if (!each_block.else_fn || else_block_dispose_fn) return;
+                    else_block_dispose_fn = each_block.else_fn(fragment, $);
+                    anchor.before(fragment);
+                    return;
                 }
 
-                for (const dispose of existing_dispose_blocks) dispose();
-                existing_dispose_blocks.length = 0;
-
-                if (!each_block.else_fn || else_block_dispose_fn) return;
-                else_block_dispose_fn = each_block.else_fn(fragment, $);
-                anchor.before(fragment);
-                return;
-            }
-
-            if (else_block_dispose_fn) {
-                else_block_dispose_fn()
-                else_block_dispose_fn = null;
-            }
-
-            const new_each_dispose_blocks = [];
-
-            let i = -1;
-            for (const ar of arr) {
-                i++;
-
-                if (existing_dispose_blocks[i]) {
-                    new_each_dispose_blocks.push(existing_dispose_blocks[i]);
-                    continue;
+                if (else_block_dispose_fn) {
+                    else_block_dispose_fn()
+                    else_block_dispose_fn = null;
                 }
 
-                const $ = Object.create($sub);
-                $[CORE.IDX_STATE] = i;
+                const new_each_dispose_blocks = [];
 
-                const dispose = each_block.fn(fragment, $);
-                new_each_dispose_blocks.push(dispose);
+                let i = -1;
+                for (const ar of arr) {
+                    i++;
+
+                    if (existing_dispose_blocks[i]) {
+                        new_each_dispose_blocks.push(existing_dispose_blocks[i]);
+                        continue;
+                    }
+
+                    const $ = Object.create($sub);
+                    $[CORE.IDX_STATE] = i;
+
+                    const dispose = each_block.fn(fragment, $);
+                    new_each_dispose_blocks.push(dispose);
+                }
+
+                // TEAR DOWN BLOCKS THAT ARE BEYOND THE NEW ARRAY LENGTH
+                for (let i = new_each_dispose_blocks.length; i < existing_dispose_blocks.length; i++) {
+                    existing_dispose_blocks[i]();
+                }
+
+                if (new_each_dispose_blocks.length > 0) anchor.before(fragment);
+
+                existing_dispose_blocks = new_each_dispose_blocks;
+            } catch (error) {
+                console.trace(error);
             }
-
-            // TEAR DOWN BLOCKS THAT ARE BEYOND THE NEW ARRAY LENGTH
-            for (let i = new_each_dispose_blocks.length; i < existing_dispose_blocks.length; i++) {
-                existing_dispose_blocks[i]();
-            }
-
-            if (new_each_dispose_blocks.length > 0) anchor.before(fragment);
-
-            existing_dispose_blocks = new_each_dispose_blocks;
         }, { track_inner_effect: false })
 
         return () => {
@@ -333,11 +341,11 @@ function replace_node_with_anchor(node, text) {
 /**
  * @param {Node} node
  * @param {number[]} node_index
- * @param {Processes} processes
+ * @param {Instruction} instruction
  */
-function process_node(node, node_index = [], processes = { children: [], events: [], bindings: [], attr_funcs: [], text_funcs: [], blocks: [], core_component_blocks: [], component_blocks: [], use_directives: [], slot_child_index: -1 }) {
+function discover_node_instruction(node, node_index = [], instruction = { children: [], events: [], bindings: [], attr_funcs: [], text_funcs: [], blocks: [], core_component_blocks: [], component_blocks: [], use_directives: [], slot_child_index: -1 }) {
     const isStyle = node instanceof HTMLStyleElement;
-    if (isStyle) return processes;
+    if (isStyle) return instruction;
 
     const handlebar_re = /({{(?:(?!}}).)*}})/g;
     const handlebar_capture_inner_expression_re = /{{\s*(.+?)\s*}}/g;
@@ -347,22 +355,22 @@ function process_node(node, node_index = [], processes = { children: [], events:
         const expression = node.textContent;
         const parts = expression.split(handlebar_re);
         const has_handlebars = parts.map(p => p.startsWith("{{")).filter(p => p === true).length > 0;
-        if (!has_handlebars) return processes;
+        if (!has_handlebars) return instruction;
 
         node.textContent = "";
-        processes.children.push(node_index);
-        processes.text_funcs.push({ child_index: processes.children.length - 1, expr: `\`${expression.replace(handlebar_capture_inner_expression_re, (_, e) => "${" + e + "}")}\`` });
-        return processes;
+        instruction.children.push(node_index);
+        instruction.text_funcs.push({ child_index: instruction.children.length - 1, expr: `\`${expression.replace(handlebar_capture_inner_expression_re, (_, e) => "${" + e + "}")}\`` });
+        return instruction;
     }
 
-    if (node.nodeType === Node.COMMENT_NODE) return processes;
+    if (node.nodeType === Node.COMMENT_NODE) return instruction;
 
     const isCoreSlotNode = (node) => Boolean(node.dataset && node.dataset.block === "core-slot");
     if (isCoreSlotNode(node)) {
         replace_node_with_anchor(node, "component-slot");
-        processes.children.push(node_index);
-        processes.slot_child_index = processes.children.length - 1;
-        return processes;
+        instruction.children.push(node_index);
+        instruction.slot_child_index = instruction.children.length - 1;
+        return instruction;
     }
 
     const isComponentNode = (node) => Boolean(node.dataset && node.dataset.block === "component");
@@ -377,17 +385,17 @@ function process_node(node, node_index = [], processes = { children: [], events:
         if (is_core_component_node && !component) throw "no default component found";
         if (is_component_node && (!component_id || !component_tag)) throw "component not found";
         replace_node_with_anchor(node, "component-block");
-        processes.children.push(node_index);
-        processes.component_blocks.push({ child_index: processes.children.length - 1, component, component_id, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
-        return processes;
+        instruction.children.push(node_index);
+        instruction.component_blocks.push({ child_index: instruction.children.length - 1, component, component_id, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
+        return instruction;
     }
 
     const isBlockNode = (node) => Boolean(node.dataset && node.dataset.block && node.dataset.blockId)
     if (isBlockNode(node)) {
         replace_node_with_anchor(node, node.dataset.block + "-block");
-        processes.children.push(node_index);
-        processes.blocks.push({ child_index: processes.children.length - 1, type: node.dataset.block, id: node.dataset.blockId });
-        return processes;
+        instruction.children.push(node_index);
+        instruction.blocks.push({ child_index: instruction.children.length - 1, type: node.dataset.block, id: node.dataset.blockId });
+        return instruction;
     }
 
     if (node.attributes) {
@@ -397,8 +405,8 @@ function process_node(node, node_index = [], processes = { children: [], events:
             if (attrName.startsWith('use:')) {
                 const expr = attrVal;
                 const func_name = attrName.slice(4);
-                if (!processes.children.includes(node_index)) processes.children.push(node_index);
-                processes.use_directives.push({ child_index: processes.children.length - 1, func_name, expr });
+                if (!instruction.children.includes(node_index)) instruction.children.push(node_index);
+                instruction.use_directives.push({ child_index: instruction.children.length - 1, func_name, expr });
 
                 node.removeAttribute(attrName);
             } else if (attrName.startsWith('bind:')) {
@@ -409,22 +417,22 @@ function process_node(node, node_index = [], processes = { children: [], events:
                 };
                 const event_name = event_name_dictionary[property] ? event_name_dictionary[property] : property;
 
-                if (!processes.children.includes(node_index)) processes.children.push(node_index);
-                processes.bindings.push({ child_index: processes.children.length - 1, event_name, property, var : attrVal });
+                if (!instruction.children.includes(node_index)) instruction.children.push(node_index);
+                instruction.bindings.push({ child_index: instruction.children.length - 1, event_name, property, var : attrVal });
 
                 node.removeAttribute(attrName);
             } else if (attrName.startsWith('on:')) {
                 const expr = attrVal;
                 const event_name = attrName.slice(3);
 
-                if (!processes.children.includes(node_index)) processes.children.push(node_index);
-                processes.events.push({ child_index: processes.children.length - 1, event_name, expr });
+                if (!instruction.children.includes(node_index)) instruction.children.push(node_index);
+                instruction.events.push({ child_index: instruction.children.length - 1, event_name, expr });
 
                 node.removeAttribute(attrName);
             } else if (attrName.startsWith(":")) {
                 const expr = attrVal;
-                if (!processes.children.includes(node_index)) processes.children.push(node_index);
-                processes.attr_funcs.push({ child_index: processes.children.length - 1, expr, property: attrName.slice(1, attrName.length) });
+                if (!instruction.children.includes(node_index)) instruction.children.push(node_index);
+                instruction.attr_funcs.push({ child_index: instruction.children.length - 1, expr, property: attrName.slice(1, attrName.length) });
 
                 node.removeAttribute(attrName);
             }
@@ -432,9 +440,9 @@ function process_node(node, node_index = [], processes = { children: [], events:
     }
 
     const childNodes = Array.from(node.childNodes);
-    for (let i = 0; i < childNodes.length; i++) process_node(childNodes[i], [...node_index, i], processes);
+    for (let i = 0; i < childNodes.length; i++) discover_node_instruction(childNodes[i], [...node_index, i], instruction);
 
-    return processes;
+    return instruction;
 }
 
 /** @type {(nums:number[]) => string} */
@@ -479,7 +487,7 @@ export function compile_template(fragment) {
 
     let dispose_fn_i = -1;
 
-    const processes = process_node(fragment);
+    const instruction = discover_node_instruction(fragment);
     const fragment_cache_index = CORE.fragment_cache.length;
     CORE.fragment_cache.push(fragment);
 
@@ -495,37 +503,37 @@ export function compile_template(fragment) {
     const dispose_fns = [];
 
 ${
-    (processes.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
-    processes.children.map((child, i) => {
+    (instruction.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
+    instruction.children.map((child, i) => {
         return `const child${i} = fragment${resolve_child_node(child)};`;
     }).join("\n\t")
 }${
-    (processes.text_funcs.length > 0 || processes.attr_funcs.length > 0) ? `\n
+    (instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `\n
     // TEXT & ATTRIBUTES
     dispose_fns[${++dispose_fn_i}] = CORE.effect(() => {
         ${
-        processes.text_funcs.map((func) => {
+        instruction.text_funcs.map((func) => {
             return `CORE.set_text(child${func.child_index}, ${func.expr});`
         }).join("\n\t\t")}${
-        (processes.attr_funcs.length > 0 ? "\n\t\t" : "") +
-        processes.attr_funcs.map((func, i) => {
+        (instruction.attr_funcs.length > 0 ? "\n\t\t" : "") +
+        instruction.attr_funcs.map((func, i) => {
             return `CORE.set_attr(child${func.child_index}, ${func.expr}, "${func.property}");`
         }).join("\n\t")}
     })` : ''
 }${
-    (processes.events.length > 0 ? '\n\n\t// EVENT DELEGATION\n\t' : '') +
-    processes.events.map((event) => {
+    (instruction.events.length > 0 ? '\n\n\t// EVENT DELEGATION\n\t' : '') +
+    instruction.events.map((event) => {
         return `dispose_fns[${++dispose_fn_i}] = CORE.delegate("${event.event_name}", child${event.child_index}, (${event.expr}));`
     }).join("\n\t")
 }${
-    (processes.bindings.length > 0 ? '\n\n\t// TWO WAY DATA BINDING\n\t' : '') +
-    processes.bindings.map((bind) => {
+    (instruction.bindings.length > 0 ? '\n\n\t// TWO WAY DATA BINDING\n\t' : '') +
+    instruction.bindings.map((bind) => {
         return `dispose_fns[${++dispose_fn_i}] = CORE.delegate("${bind.event_name}", child${bind.child_index}, ((event) => CORE.is_signal(${bind.var}) ? ${bind.var}.set(event.target.${bind.property}) : (${bind.var} = event.target.${bind.property})))
     dispose_fns[${++dispose_fn_i}] = CORE.effect(() => (child${bind.child_index}.${bind.property} = CORE.is_signal(${bind.var}) ? ${bind.var}() : ${bind.var}));`
     }).join("\n\n\t")
 }${
-    (processes.blocks.length > 0 ? '\n\n\t// IF/EACH/AWAIT BLOCKS\n\t' : '') +
-    processes.blocks.sort((a,b) => a.type.localeCompare(b.type)).map((block) => {
+    (instruction.blocks.length > 0 ? '\n\n\t// IF/EACH/AWAIT BLOCKS\n\t' : '') +
+    instruction.blocks.sort((a,b) => a.type.localeCompare(b.type)).map((block) => {
         const block_data = CORE.block_cache.get(block.id);
         if (block.type === "if") {
             return `dispose_fns[${++dispose_fn_i}] = CORE.if(child${block.child_index}, $, "${block.id}", [\n\t\t${block_data.exprs.map((expr) => `(($) => ${expr})`).join(",\n\t\t")}\n\t]);`
@@ -545,8 +553,8 @@ ${
         }
     }).join("\n\n\t")
 }${
-    (processes.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t' : '') +
-    processes.component_blocks.map((block, i) => {
+    (instruction.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t' : '') +
+    instruction.component_blocks.map((block, i) => {
         const component = CORE.block_cache.get(block.props_id);
         return `const component${i} = CORE.block_cache.get("${block.props_id}");
     const component${i}_components = CORE.block_cache.get("${block.component_id}");
@@ -557,16 +565,16 @@ ${
 }
     dispose_fns[${++dispose_fn_i}] = CORE.core_component(child${block.child_index}, ${block.component ? `$.${block.component}` : `component${i}_components.${block.component_tag}` }, component${i}_props, (anchor) => component${i}_slot_fn(anchor, $));`}).join("\n\n\t")
 }${
-    (processes.use_directives.length > 0 ? '\n\n\t// USE DIRECTIVE\n\t' : '') +
-    processes.use_directives.map((directive, i) => {
+    (instruction.use_directives.length > 0 ? '\n\n\t// USE DIRECTIVE\n\t' : '') +
+    instruction.use_directives.map((directive, i) => {
         return `dispose_fns[${++dispose_fn_i}] = $.${directive.func_name}(child${directive.child_index}, (${directive.expr})) || (() => {})`;
     }).join("\n\t")
 }${
-    processes.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <CoreSlot/>
+    instruction.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <CoreSlot/>
     if (slot_fn) {
         const fragment = document.createDocumentFragment();
         dispose_fns[${++dispose_fn_i}] = slot_fn(fragment);
-        child${processes.slot_child_index}.before(fragment);
+        child${instruction.slot_child_index}.before(fragment);
     }` : ''
 }
 
