@@ -545,7 +545,7 @@ ${
         }
     }).join("\n\n\t")
 }${
-    (processes.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <Core:component default="component_function"/>\n\t' : '') +
+    (processes.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t' : '') +
     processes.component_blocks.map((block, i) => {
         const component = CORE.block_cache.get(block.props_id);
         return `const component${i} = CORE.block_cache.get("${block.props_id}");
@@ -562,7 +562,7 @@ ${
         return `dispose_fns[${++dispose_fn_i}] = $.${directive.func_name}(child${directive.child_index}, (${directive.expr})) || (() => {})`;
     }).join("\n\t")
 }${
-    processes.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <Core:slot/>
+    processes.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <CoreSlot/>
     if (slot_fn) {
         const fragment = document.createDocumentFragment();
         dispose_fns[${++dispose_fn_i}] = slot_fn(fragment);
@@ -619,8 +619,8 @@ export function process_components(template, imported_component_id) {
 
         add_block_to_cache(props_id, { props, dynamic_props });
 
-        if (match.startsWith("<Core:slot")) return `<template data-block="core-slot"></template>`;
-        if (match.startsWith("<Core:component")) {
+        if (match.startsWith("<CoreSlot")) return `<template data-block="core-slot"></template>`;
+        if (match.startsWith("<CoreComponent")) {
             const _default = props.default;
             delete props.default;
             return `<template data-block="core-component" data-block-props-id="${props_id}" data-component="${_default}" ${slot_id ? `data-slot-id="${slot_id}"` : ''}></template>`;

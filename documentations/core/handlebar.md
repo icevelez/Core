@@ -123,16 +123,16 @@ const dataPromise = fetch("...")
 {{#await import("./components/List.js")}}
   <p>Loading list..</p>
 {{:then listComponent}}
-  <Core:component default="$.listComponent"/>
+  <CoreComponent default="$.listComponent"></CoreComponent>
 {{:catch error}}
   <p class="text-red-500">Error loading list component</p>
 {{/await}}
 ```
 
-`<Core:component/>` is a special element that allows a **component** to be displayed
+`<CoreComponent>` is a special element that allows a **component** to be displayed
 
 ```html
-<Core:component default="$.component">
+<CoreComponent default="$.component"></CoreComponent>
 ```
 
 ---

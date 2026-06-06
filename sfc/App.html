@@ -3,9 +3,6 @@
     import { signal } from "../core/runtime.js";
     import { Router } from "../lib/router.js";
 
-    export const PropSlotExample = sfc("/sfc/PropSlotExample.html");
-    export const Todo = sfc("sfc/Todo.html");
-
     export default class {
 
         Router = Router;
@@ -23,16 +20,25 @@
     {{#await sfc("sfc/Benchmark.html")}}
         <h1>Loading Benchmark</h1>
     {{:then Benchmark}}
-        <Core:component default="Benchmark"/>
+        <CoreComponent default="Benchmark"></CoreComponent>
     {{/await}}
 {{:else if $.Router.match("/todo").is_match}}
     <Todo/>
+    {{#await sfc("sfc/Todo.html")}}
+        <h1>Loading Todo</h1>
+    {{:then Todo}}
+        <CoreComponent default="Todo"></CoreComponent>
+    {{/await}}
 {{:else}}
     <button use:myaction="'Hello'" on:click="() => $.count.set($.count()+1)">Count: {{ $.count() }}</button>
     <input bind:value="$.name">
     <h1>Hello {{ $.name() }}</h1>
     <hr>
-    <PropSlotExample :name="`${$.name()} ${$.count()}`">
-        <h1>Hi from Parent Scope {{ $.count() }}</h1>
-    </PropSlotExample>
+    {{#await sfc("sfc/PropSlotExample.html")}}
+        <h1>Loading PropSlotExample</h1>
+    {{:then PropSlotExample}}
+        <CoreComponent default="PropSlotExample" :name="`${$.name()} ${$.count()}`">
+            <h1>Hi from Parent Scope {{ $.count() }}</h1>
+        </CoreComponent>
+    {{/await}}
 {{/if}}

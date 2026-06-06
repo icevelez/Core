@@ -4,7 +4,7 @@
     {{#await import("/src/Benchmark.js")}}
         <h1>Loading Benchmark</h1>
     {{:then Benchmark}}
-        <Core:component default="Benchmark"/>
+        <CoreComponent default="Benchmark"></CoreComponent>
     {{/await}}
 {{:else}}
     <h1>{{ $.name() }}</h1>
@@ -15,10 +15,14 @@
     <input type="text" bind:value="$.message"/>
     <input type="text" bind:value="$.name"/>
 
-    {{#each $.arr() as _}}
-        <Comp :name="$.name()">
-            <h1>This is from parent {{ $.message() }}</h1>
-        </Comp>
-        <hr>
-    {{/each}}
+    {{#await import('/src/Comp.js')}}
+        <h1>Loading Comp</h1>
+    {{:then Comp}}
+        {{#each $.arr() as _}}
+            <CoreComponent default="Comp" :name="$.name()">
+                <h1>This is from parent {{ $.message() }}</h1>
+            </CoreComponent>
+            <hr>
+        {{/each}}
+    {{/await}}
 {{/if}}

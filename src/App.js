@@ -2,7 +2,6 @@ import { component } from "../core/parser/handlebar.js";
 import { set_context, signal, load } from "../core/runtime.js";
 
 import Comp from "./Comp.js";
-
 export default component({
     template: await load("src/App.html"),
     components: {
@@ -15,7 +14,7 @@ export default component({
     birth_date = new Date();
     name = signal("John");
     message = signal("This is a message");
-    arr = signal('1'.repeat(1).split(""));
+    arr = signal('1'.repeat(3).split(""));
 
     constructor() {
         // setTimeout(() => {

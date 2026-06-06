@@ -384,7 +384,7 @@ export default class {
 </script>
 
 <h1>Hello from Example.html — {{ $.props.name }}</h1>
-<Core:slot/>
+<CoreSlot/>
 <h2>End of Example.html</h2>
 ```
 
