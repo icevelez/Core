@@ -1,4 +1,4 @@
-import { add_block_to_cache, compile_template, create_component, make_id } from "../runtime.js";
+import { add_block_to_cache, create_render_function, create_component, make_id } from "../runtime.js";
 
 /**
  * @param {string} url
@@ -101,14 +101,14 @@ const parse = {
         while ((m = RE.else.exec(firstBody))) {
             if (m.index > lastIndex) {
                 exprs.push(lastCond);
-                fns.push(compile_template(firstBody.slice(lastIndex, m.index)))
+                fns.push(create_render_function(firstBody.slice(lastIndex, m.index)))
             }
             if (m[0].startsWith("{{:else if")) {
                 lastCond = m[1];
                 lastIndex = m.index + m[0].length;
             } else {
                 exprs.push("true");
-                fns.push(compile_template(firstBody.slice(m.index + m[0].length)))
+                fns.push(create_render_function(firstBody.slice(m.index + m[0].length)))
                 lastIndex = firstBody.length;
                 break;
             }
@@ -116,7 +116,7 @@ const parse = {
 
         if (lastIndex < firstBody.length) {
             exprs.push(lastCond);
-            fns.push(compile_template(firstBody.slice(lastIndex)))
+            fns.push(create_render_function(firstBody.slice(lastIndex)))
         }
 
         return { fns, exprs : exprs.map((expr) => expr.trim()) };
@@ -132,8 +132,8 @@ const parse = {
 
         return {
             expr: expr.trim(),
-            fn: parts[0] ? compile_template(parts[0]) : undefined,
-            else_fn: parts[1] ? compile_template(parts[1]) : undefined,
+            fn: parts[0] ? create_render_function(parts[0]) : undefined,
+            else_fn: parts[1] ? create_render_function(parts[1]) : undefined,
             key: trimmedVar,
             keys: trimmedVar.startsWith("{") || trimmedVar.startsWith("[") ? trimmedVar.slice(1, -1).split(",").map(v => v.trim()) : [],
             index_key: indexVar?.trim() || "",
@@ -151,10 +151,10 @@ const parse = {
 
         return {
             expr: promiseExpr.trim(),
-            pending_fn: pending ? compile_template(pending) : undefined,
-            then_fn: thenMatch && thenMatch[2] ? compile_template(thenMatch[2]) : undefined,
+            pending_fn: pending ? create_render_function(pending) : undefined,
+            then_fn: thenMatch && thenMatch[2] ? create_render_function(thenMatch[2]) : undefined,
             then_key: thenMatch && thenMatch[1] || undefined,
-            catch_fn: catchMatch && catchMatch[2] ? compile_template(catchMatch[2]) : undefined,
+            catch_fn: catchMatch && catchMatch[2] ? create_render_function(catchMatch[2]) : undefined,
             catch_key: catchMatch && catchMatch[1] || undefined,
         };
     },

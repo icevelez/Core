@@ -476,7 +476,7 @@ function remove_whitespace_nodes(root) {
 /**
  * @param {DocumentFragment | string} fragment
  */
-export function compile_template(fragment) {
+export function create_render_function(fragment) {
     if (typeof fragment === "string") {
         const templateEl = document.createElement("template");
         templateEl.innerHTML = fragment;
@@ -611,7 +611,7 @@ export function process_components(template, imported_component_id) {
             }
         })
 
-        if (inner_content) add_block_to_cache(slot_id, compile_template(inner_content));
+        if (inner_content) add_block_to_cache(slot_id, create_render_function(inner_content));
 
         // USED TO ATTACH DYNAMIC PROPS WITHOUT TRIGGER A GETTER BY USING A HIDDEN PROPERTY "CORE.PRP_STATE" SYMBOL CONTAINING FUNCTION TO REFERENCE THE PROP VALUE
         // THE DYNAMIC PROP VALUE IS A FUNCTION CALL MADE BY THE TEMPLATE COMPILER
@@ -650,7 +650,7 @@ export function create_component(options, Data, template_processor) {
 
     const components_id = `component-${make_id(6)}`;
     const template = process_components(options.template, components_id);
-    const template_fn = compile_template(template_processor(template));
+    const template_fn = create_render_function(template_processor(template));
 
     if (options.components && Object.keys(options.components).length > 0) CORE.block_cache.set(components_id, options.components);
 
