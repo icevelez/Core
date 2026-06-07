@@ -652,7 +652,7 @@ export function create_component(options, Data, template_processor) {
     const template = process_components(options.template, components_id);
     const template_fn = create_render_function(template_processor(template));
 
-    if (options.components && Object.keys(options.components).length > 0) CORE.block_cache.set(components_id, options.components);
+    if (options.components && Object.keys(options.components).length > 0) add_block_to_cache(components_id, options.components);
 
     return (anchor, props, slot_fn) => {
         const $ = data_fn(Data, props);
