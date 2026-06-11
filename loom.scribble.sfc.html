@@ -1,0 +1,21 @@
+<script>
+    export default function () {
+        const props = getProps({ name: String });
+
+        const [name, setName] = signal("John");
+        const [count, setCount] = signal(0);
+
+        onMount(() => {
+            console.log("Hello from App")
+        })
+    }
+</script>
+
+<p>From props "{{ props.message }}"</p>
+<h1>Hello {{ name() }}</h1>
+<input type="text" on:input="(e) => setName(e.target.value)" :value="name()"/>
+<h2>Count: {{ count() }}</h2>
+<button on:click="() => setCount(count()+1)">Increment Counter</button>
+{{#each arr as ar, i}}
+    <h1>{{ i }} {{ $(ar) }}</h1>
+{{/each}}

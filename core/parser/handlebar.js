@@ -25,8 +25,26 @@ export async function sfc(url) {
 
     const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
     const script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
+
+    // generate component_id
+    // process components used inside template, replaced by placeholder template element using component_id as reference
+    // process template
+    // inject compiler output to script default function
+
     const script_blob = new Blob([script_content], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
+
+    // const { default: render_function, components: component_promises } = await import(script_url);
+    //
+    // const components_keys = Object.keys(component_promises);
+    // const components_arr = await Promise.all(components_keys.map((k) => component_promises[k]));
+    // const components = {};
+    //
+    // for (let i = 0; i < components_keys.length; i++) components[components_keys[i]] = components_arr[i];
+    //
+    // process exported component store using component_id as key
+    // return render_function
+
     const { default: ctx, ...component_promises } = await import(script_url);
 
     const components_keys = Object.keys(component_promises);
