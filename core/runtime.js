@@ -420,18 +420,6 @@ function discover_node_instruction(node, node_index = [], instruction = { childr
                 instruction.use_directives.push({ child_index: instruction.children.length - 1, func_name, expr });
 
                 node.removeAttribute(attrName);
-            } else if (attrName.startsWith('bind:')) {
-                const property = attrName.slice(5);
-                const event_name_dictionary = {
-                    "checked": node.type === "date" ? "change" : "click",
-                    "value": node.tagName === "select" ? "change" : "input",
-                };
-                const event_name = event_name_dictionary[property] ? event_name_dictionary[property] : property;
-
-                if (!instruction.children.includes(node_index)) instruction.children.push(node_index);
-                instruction.bindings.push({ child_index: instruction.children.length - 1, event_name, property, var : attrVal });
-
-                node.removeAttribute(attrName);
             } else if (attrName.startsWith('on:')) {
                 const expr = attrVal;
                 const event_name = attrName.slice(3);
@@ -502,7 +490,7 @@ export function process_components(template, imported_component_id) {
         })
 
         // REPLACE "create_render_function"
-        if (inner_content) add_block_to_cache(slot_id, create_render_function(inner_content));
+        if (inner_content) add_block_to_cache(slot_id, create_render_code_string(inner_content));
 
         // USED TO ATTACH DYNAMIC PROPS WITHOUT TRIGGER A GETTER BY USING A HIDDEN PROPERTY "CORE.PRP_STATE" SYMBOL CONTAINING FUNCTION TO REFERENCE THE PROP VALUE
         // THE DYNAMIC PROP VALUE IS A FUNCTION CALL MADE BY THE TEMPLATE COMPILER
@@ -599,8 +587,7 @@ export async function sfc(url, template_processor) {
     });
     if (error) throw error;
 
-    // REPLACE
-    if (!script) return component({ template });
+    if (!script) return new Function(create_render_code_string(template));
 
     const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
     let script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
@@ -609,14 +596,9 @@ export async function sfc(url, template_processor) {
     // template = process_components(template, components_id);
     template = template_processor(template);
 
-    const macros = `
-        const defineProps = window.__core__.get_props;
-
-        /* START OF USER CODE */`;
-
     const render_code_string = create_render_code_string(template);
     const user_code = extract_default_function(script_content);
-    script_content = script_content.replace(user_code, `${macros}${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED CODE BY THE RUNTIME COMPILER - IT IS ESSENTIALLY YOUR TEMPLATE */\n\t\t${render_code_string}`);
+    script_content = script_content.replace(user_code, `${user_code}\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED CODE BY THE RUNTIME COMPILER - IT IS ESSENTIALLY YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
     const script_blob = new Blob([script_content], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
@@ -667,7 +649,6 @@ export function create_render_code_string(fragment, options) {
             }).join("\n\t")
         }
 
-        /** @type {Function[]} */
         const $DISPOSE_FNS = [];
         ${(instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `
         // TEXT & ATTRIBUTES
@@ -683,21 +664,16 @@ export function create_render_code_string(fragment, options) {
         instruction.events.map((event) => {
             return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
         }).join("\n\t\t")
-        }${(instruction.bindings.length > 0 ? '\n\n\t// TWO WAY DATA BINDING\n\t\t' : '') +
-            instruction.bindings.map((bind) => {
-                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.delegate("${bind.event_name}", $CHILD${bind.child_index}, ((event) => $CORE.is_signal(${bind.var}) ? ${bind.var}.set(event.target.${bind.property}) : (${bind.var} = event.target.${bind.property})))
-        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.effect(() => ($CHILD${bind.child_index}.${bind.property} = $CORE.is_signal(${bind.var}) ? ${bind.var}() : ${bind.var}));`
-            }).join("\n\n\t\t")
-            }${(instruction.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t' : '') +
+        }${(instruction.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t' : '') +
             instruction.component_blocks.map((block, i) => {
                 const component = CORE.block_cache.get(block.props_id);
+                const component_slot_fn_code = CORE.block_cache.get(block.slot_id);
                 return `const component${i} = $CORE.block_cache.get("${block.props_id}");
         const component${i}_components = $CORE.block_cache.get("${block.component_id}");
-        const component${i}_slot_fn = $CORE.block_cache.get("${block.slot_id}");
         const component${i}_props = Object.create(component${i}.props);
     ${component.dynamic_props.length > 0 ? `\n\tcomponent${i}.props[$CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ")} };\n` : ''
                     }
-        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `$.${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, (anchor) => component${i}_slot_fn(anchor, $));`
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code}});`
             }).join("\n\n\t")
             }${(instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
             instruction.use_directives.map((directive, i) => {
@@ -741,9 +717,7 @@ function extract_default_function(source) {
         if (ch === "{") depth++;
         else if (ch === "}") {
             depth--;
-            if (depth === 0) {
-                return source.slice(start + 1, i);
-            }
+            if (depth === 0) return source.slice(start + 1, i);
         }
     }
 
@@ -1103,3 +1077,11 @@ export const make_id = (length) => {
      for (var i = 0; i < length; i++) result += characters.charAt(Math.floor(Math.random() * characters.length));
      return result;
  }
+
+// DIRECTIVES
+
+export function bind(node, [value, get, set]) {
+    const event_name_dictionary = { "checked": node.type === "date" ? "change" : "click", "value": node.tagName === "select" ? "change" : "input" };
+    CORE.delegate(event_name_dictionary[value], node, (e) => set(e.target[value]))
+    return CORE.effect(() => node[value] = get());
+}
