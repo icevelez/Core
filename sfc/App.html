@@ -3,41 +3,19 @@
     import { signal } from "../core/runtime.js";
     import { Router } from "../lib/router.js";
 
-    export default class {
+    export default function() {
 
-        Router = Router;
+        const Router = Router;
 
-        name = signal("John");
-        count = signal(0);
+        const [name, setName] = signal("John");
+        const [count, setCount] = signal(0);
 
-        myaction = (node, arg) => {
+        const myaction = (node, arg) => {
             console.log("HEEEELLO", node, arg);
         }
     }
 </script>
 
-{{#if $.Router.match("/benchmark").is_match}}
-    {{#await sfc("sfc/Benchmark.html")}}
-        <h1>Loading Benchmark</h1>
-    {{:then Benchmark}}
-        <CoreComponent default="Benchmark"></CoreComponent>
-    {{/await}}
-{{:else if $.Router.match("/todo").is_match}}
-    {{#await sfc("sfc/Todo.html")}}
-        <h1>Loading Todo</h1>
-    {{:then Todo}}
-        <CoreComponent default="Todo"></CoreComponent>
-    {{/await}}
-{{:else}}
-    <button use:myaction="'Hello'" on:click="() => $.count.set($.count()+1)">Count: {{ $.count() }}</button>
-    <input bind:value="$.name">
-    <h1>Hello {{ $.name() }}</h1>
-    <hr>
-    {{#await sfc("sfc/PropSlotExample.html")}}
-        <h1>Loading PropSlotExample</h1>
-    {{:then PropSlotExample}}
-        <CoreComponent default="PropSlotExample" :name="`${$.name()} ${$.count()}`">
-            <h1>Hi from Parent Scope {{ $.count() }}</h1>
-        </CoreComponent>
-    {{/await}}
-{{/if}}
+<h1>Hello {{ name() }}</h1>
+<p>count {{ count() }}</p>
+<button on:click="() => setCount(count()+1)"></button>

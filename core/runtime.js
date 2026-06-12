@@ -505,7 +505,7 @@ export function create_render_function(fragment) {
 ${
     (instruction.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
     instruction.children.map((child, i) => {
-        return `const child${i} = fragment${resolve_child_node(child)};`;
+        return `const $CHILD${i} = fragment${resolve_child_node(child)};`;
     }).join("\n\t")
 }${
     (instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `\n
@@ -513,32 +513,32 @@ ${
     dispose_fns[${++dispose_fn_i}] = CORE.effect(() => {
         ${
         instruction.text_funcs.map((func) => {
-            return `CORE.set_text(child${func.child_index}, ${func.expr});`
+            return `CORE.set_text($CHILD${func.child_index}, ${func.expr});`
         }).join("\n\t\t")}${
         (instruction.attr_funcs.length > 0 ? "\n\t\t" : "") +
         instruction.attr_funcs.map((func, i) => {
-            return `CORE.set_attr(child${func.child_index}, ${func.expr}, "${func.property}");`
+            return `CORE.set_attr($CHILD${func.child_index}, ${func.expr}, "${func.property}");`
         }).join("\n\t")}
     })` : ''
 }${
     (instruction.events.length > 0 ? '\n\n\t// EVENT DELEGATION\n\t' : '') +
     instruction.events.map((event) => {
-        return `dispose_fns[${++dispose_fn_i}] = CORE.delegate("${event.event_name}", child${event.child_index}, (${event.expr}));`
+        return `dispose_fns[${++dispose_fn_i}] = CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
     }).join("\n\t")
 }${
     (instruction.bindings.length > 0 ? '\n\n\t// TWO WAY DATA BINDING\n\t' : '') +
     instruction.bindings.map((bind) => {
-        return `dispose_fns[${++dispose_fn_i}] = CORE.delegate("${bind.event_name}", child${bind.child_index}, ((event) => CORE.is_signal(${bind.var}) ? ${bind.var}.set(event.target.${bind.property}) : (${bind.var} = event.target.${bind.property})))
-    dispose_fns[${++dispose_fn_i}] = CORE.effect(() => (child${bind.child_index}.${bind.property} = CORE.is_signal(${bind.var}) ? ${bind.var}() : ${bind.var}));`
+        return `dispose_fns[${++dispose_fn_i}] = CORE.delegate("${bind.event_name}", $CHILD${bind.child_index}, ((event) => CORE.is_signal(${bind.var}) ? ${bind.var}.set(event.target.${bind.property}) : (${bind.var} = event.target.${bind.property})))
+    dispose_fns[${++dispose_fn_i}] = CORE.effect(() => ($CHILD${bind.child_index}.${bind.property} = CORE.is_signal(${bind.var}) ? ${bind.var}() : ${bind.var}));`
     }).join("\n\n\t")
 }${
     (instruction.blocks.length > 0 ? '\n\n\t// IF/EACH/AWAIT BLOCKS\n\t' : '') +
     instruction.blocks.sort((a,b) => a.type.localeCompare(b.type)).map((block) => {
         const block_data = CORE.block_cache.get(block.id);
         if (block.type === "if") {
-            return `dispose_fns[${++dispose_fn_i}] = CORE.if(child${block.child_index}, $, "${block.id}", [\n\t\t${block_data.exprs.map((expr) => `(($) => ${expr})`).join(",\n\t\t")}\n\t]);`
+            return `dispose_fns[${++dispose_fn_i}] = CORE.if($CHILD${block.child_index}, $, "${block.id}", [\n\t\t${block_data.exprs.map((expr) => `(($) => ${expr})`).join(",\n\t\t")}\n\t]);`
         } else if (block.type === "each") {
-            return `dispose_fns[${++dispose_fn_i}] = CORE.each(child${block.child_index}, $, "${block.id}", (() => ${block_data.expr}), {
+            return `dispose_fns[${++dispose_fn_i}] = CORE.each($CHILD${block.child_index}, $, "${block.id}", (() => ${block_data.expr}), {
         ${
             block_data.keys && block_data.keys.length > 0 ?
                 `${block_data.keys.map((key) => `${key} : { get() { return this[CORE.ARR_STATE][this[CORE.IDX_STATE]].${key} }, set(v) { this[CORE.ARR_STATE][this[CORE.IDX_STATE]].${key} = v; } }`).join(",\n\t\t")}` :
@@ -549,7 +549,7 @@ ${
     })`;
         } else if (block.type === "await") {
             const block_data = CORE.block_cache.get(block.id);
-            return `dispose_fns[${++dispose_fn_i}] = CORE.await(child${block.child_index}, $, "${block.id}", (() => ${block_data.expr}));`
+            return `dispose_fns[${++dispose_fn_i}] = CORE.await($CHILD${block.child_index}, $, "${block.id}", (() => ${block_data.expr}));`
         }
     }).join("\n\n\t")
 }${
@@ -563,18 +563,18 @@ ${
 ${
     component.dynamic_props.length > 0 ? `\n\tcomponent${i}.props[CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ") } };\n` : ''
 }
-    dispose_fns[${++dispose_fn_i}] = CORE.core_component(child${block.child_index}, ${block.component ? `$.${block.component}` : `component${i}_components.${block.component_tag}` }, component${i}_props, (anchor) => component${i}_slot_fn(anchor, $));`}).join("\n\n\t")
+    dispose_fns[${++dispose_fn_i}] = CORE.core_component($CHILD${block.child_index}, ${block.component ? `$.${block.component}` : `component${i}_components.${block.component_tag}` }, component${i}_props, (anchor) => component${i}_slot_fn(anchor, $));`}).join("\n\n\t")
 }${
     (instruction.use_directives.length > 0 ? '\n\n\t// USE DIRECTIVE\n\t' : '') +
     instruction.use_directives.map((directive, i) => {
-        return `dispose_fns[${++dispose_fn_i}] = $.${directive.func_name}(child${directive.child_index}, (${directive.expr})) || (() => {})`;
+        return `dispose_fns[${++dispose_fn_i}] = $.${directive.func_name}($CHILD${directive.child_index}, (${directive.expr})) || (() => {})`;
     }).join("\n\t")
 }${
     instruction.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <CoreSlot/>
     if (slot_fn) {
         const fragment = document.createDocumentFragment();
         dispose_fns[${++dispose_fn_i}] = slot_fn(fragment);
-        child${instruction.slot_child_index}.before(fragment);
+        $CHILD${instruction.slot_child_index}.before(fragment);
     }` : ''
 }
 
@@ -683,6 +683,180 @@ export function create_component(options, Data, template_processor) {
             set_new_context(old_context);
         };
     };
+}
+
+
+/**
+ * @param {string} url
+ * @param {DocumentFragment} template_processor
+ */
+export async function sfc(url, template_processor) {
+    if (!window.sfc) window.sfc = sfc;
+
+    let { script, template, error } = await fetch(url).then(async response => {
+        const text = await response.text();
+        if (!response.ok) return { error: text };
+
+        const base = document.createElement("template");
+        base.innerHTML = text;
+
+        const scriptEl = base.content.querySelector("script");
+        const script = scriptEl?.innerHTML || "";
+        const template = text.replace(scriptEl?.outerHTML, "");
+
+        return { script, template };
+    });
+    if (error) throw error;
+
+    if (!script) return component({ template });
+
+    const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
+    let script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
+
+    const components_id = `component-${make_id(6)}`;
+    template = process_components(template, components_id);
+    template = template_processor(template);
+
+    const macros = `
+        const $CORE = window.__core__;
+
+        // CORE MACROS
+        const defineProps = $CORE.get_props;
+        const onMount = $CORE.onMount;
+        const onDestroy = $CORE.onDestroy;
+
+        /* INJECTED CODE BY THE RUNTIME COMPILER - START OF USER CODE */`;
+
+    const render_code_string = create_render_code_string(template);
+    const user_code = extract_default_function(script_content);
+    script_content = script_content.replace(user_code, `${macros}${user_code}\n\t\t/* END OF USER CODE - INJECTED CODE BY THE RUNTIME COMPILER */\n\t\t${render_code_string}`);
+
+    const script_blob = new Blob([script_content], { type: 'text/javascript' });
+    const script_url = URL.createObjectURL(script_blob);
+
+    const { default: render_function, components: component_promises } = await import(script_url);
+
+    const components_keys = Object.keys(component_promises || {});
+    const components_arr = await Promise.all(components_keys.map((k) => component_promises[k]));
+    const components = {};
+
+    for (let i = 0; i < components_keys.length; i++) components[components_keys[i]] = components_arr[i];
+    if (components_keys.length > 0) add_block_to_cache(components_id, components);
+
+    return render_function
+}
+
+function create_render_code_string(fragment) {
+    if (typeof fragment === "string") {
+        const templateEl = document.createElement("template");
+        templateEl.innerHTML = fragment;
+        fragment = templateEl.content;
+    }
+
+    remove_whitespace_nodes(fragment) // this should be executed before processing any template to prevent empty text nodes that are used as anchor points for rendering to be mistakenly removed
+
+    let dispose_fn_i = -1;
+
+    const instruction = discover_node_instruction(fragment);
+    const fragment_cache_index = CORE.fragment_cache.length;
+    CORE.fragment_cache.push(fragment);
+
+    const render_code_string = `
+        const $ANCHOR = $CORE.get_anchor();
+        const $FRAGMENT = $CORE.fragment_cache[${fragment_cache_index}].cloneNode(true);
+
+        const $NODE_START = $FRAGMENT.firstChild;
+        const $NODE_END = $FRAGMENT.lastChild;
+
+    ${(instruction.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
+            instruction.children.map((child, i) => {
+                return `\tconst $CHILD${i} = fragment${resolve_child_node(child)};`;
+            }).join("\n\t")
+            }
+
+        /** @type {Function[]} */
+        const $DISPOSE_FNS = [];
+    ${(instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `
+        // TEXT & ATTRIBUTES
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.effect(() => {
+            ${instruction.text_funcs.map((func) => {
+                return `$CORE.set_text($CHILD${func.child_index}, ${func.expr});`
+            }).join("\n\t\t\t")}${(instruction.attr_funcs.length > 0 ? "\n\t\t\t" : "") +
+                instruction.attr_funcs.map((func, i) => {
+                    return `$CORE.set_attr($CHILD${func.child_index}, ${func.expr}, "${func.property}");`
+                }).join("\n\t\t")}
+        })` : ''
+            }${(instruction.events.length > 0 ? '\n\n\t\t// EVENT DELEGATION\n\t\t' : '') +
+            instruction.events.map((event) => {
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
+            }).join("\n\t")
+            }${(instruction.bindings.length > 0 ? '\n\n\t// TWO WAY DATA BINDING\n\t\t' : '') +
+            instruction.bindings.map((bind) => {
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.delegate("${bind.event_name}", $CHILD${bind.child_index}, ((event) => $CORE.is_signal(${bind.var}) ? ${bind.var}.set(event.target.${bind.property}) : (${bind.var} = event.target.${bind.property})))
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.effect(() => ($CHILD${bind.child_index}.${bind.property} = $CORE.is_signal(${bind.var}) ? ${bind.var}() : ${bind.var}));`
+            }).join("\n\n\t\t")
+            }${(instruction.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t' : '') +
+            instruction.component_blocks.map((block, i) => {
+                const component = CORE.block_cache.get(block.props_id);
+                return `const component${i} = $CORE.block_cache.get("${block.props_id}");
+        const component${i}_components = $CORE.block_cache.get("${block.component_id}");
+        const component${i}_slot_fn = $CORE.block_cache.get("${block.slot_id}");
+        const component${i}_props = Object.create(component${i}.props);
+    ${component.dynamic_props.length > 0 ? `\n\tcomponent${i}.props[$CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ")} };\n` : ''
+                    }
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `$.${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, (anchor) => component${i}_slot_fn(anchor, $));`
+            }).join("\n\n\t")
+            }${(instruction.use_directives.length > 0 ? '\n\n\t// USE DIRECTIVE\n\t' : '') +
+            instruction.use_directives.map((directive, i) => {
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $.${directive.func_name}($CHILD${directive.child_index}, (${directive.expr})) || (() => {})`;
+            }).join("\n\t")
+            }${instruction.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <CoreSlot/>
+        if (slot_fn) {
+            const fragment = document.createDocumentFragment();
+            $DISPOSE_FNS[${++dispose_fn_i}] = slot_fn(fragment);
+            $CHILD${instruction.slot_child_index}.before(fragment);
+        }` : ''
+            }
+
+        $ANCHOR.append($FRAGMENT);
+
+        // CLEAN UP
+        return () => {
+            for (const fn of $DISPOSE_FNS) fn();
+            $DISPOSE_FNS.length = 0;
+
+            const parent_node = $NODE_START.parentNode;
+            if (parent_node) $CORE.remove_nodes(parent_node, $NODE_START, $NODE_END);
+        }\n\t`;
+
+    console.log(render_code_string);
+
+    return render_code_string;
+}
+
+function extract_default_function(source) {
+    const match = /export\s+default\s+function(?:\s+\w+)?\s*\(/.exec(source);
+    if (!match) return null;
+
+    let i = source.indexOf("{", match.index);
+    if (i === -1) return null;
+
+    const start = i;
+    let depth = 1;
+
+    while (++i < source.length) {
+        const ch = source[i];
+
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+            depth--;
+            if (depth === 0) {
+                return source.slice(start + 1, i);
+            }
+        }
+    }
+
+    return null;
 }
 
 window.__core__ = CORE;
