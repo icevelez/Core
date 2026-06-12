@@ -1,21 +1,20 @@
 <script>
-    import { sfc } from "../core/parser/handlebar.js";
     import { signal } from "../core/runtime.js";
     import { Router } from "../lib/router.js";
 
     export default function() {
 
-        const Router = Router;
-
         const [name, setName] = signal("John");
         const [count, setCount] = signal(0);
 
-        const myaction = (node, arg) => {
-            console.log("HEEEELLO", node, arg);
+        const action = (node, arg) => {
+            console.log("ACTION:", node, arg);
         }
     }
 </script>
 
+<div use:action="Router"></div>
 <h1>Hello {{ name() }}</h1>
+<input type="text" on:input="(e) => setName(e.target.value)" :value="name()">
 <p>count {{ count() }}</p>
-<button on:click="() => setCount(count()+1)"></button>
+<button on:click="() => setCount(count()+1)">Click Me to Increment Count</button>

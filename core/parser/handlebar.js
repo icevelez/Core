@@ -1,10 +1,10 @@
-import { add_block_to_cache, create_render_function, sfc as core_sfc, make_id } from "../runtime.js";
+import { add_block_to_cache, create_render_code_string, sfc, make_id } from "../runtime.js";
 
 /**
  * @param {string} url
  */
-export async function sfc(url) {
-    return core_sfc(url, function (source) {
+export async function component(url) {
+    return sfc(url, function (source) {
         const blockPattern = /{{#(await|if|each)(.*?)}}|{{\/(await|if|each)}}/gs, stack = [], blocks = [];
         let match;
 
@@ -62,14 +62,14 @@ const parse = {
         while ((m = RE.else.exec(firstBody))) {
             if (m.index > lastIndex) {
                 exprs.push(lastCond);
-                fns.push(create_render_function(firstBody.slice(lastIndex, m.index)))
+                fns.push(create_render_code_string(firstBody.slice(lastIndex, m.index)))
             }
             if (m[0].startsWith("{{:else if")) {
                 lastCond = m[1];
                 lastIndex = m.index + m[0].length;
             } else {
                 exprs.push("true");
-                fns.push(create_render_function(firstBody.slice(m.index + m[0].length)))
+                fns.push(create_render_code_string(firstBody.slice(m.index + m[0].length)))
                 lastIndex = firstBody.length;
                 break;
             }
@@ -77,7 +77,7 @@ const parse = {
 
         if (lastIndex < firstBody.length) {
             exprs.push(lastCond);
-            fns.push(create_render_function(firstBody.slice(lastIndex)))
+            fns.push(create_render_code_string(firstBody.slice(lastIndex)))
         }
 
         return { fns, exprs : exprs.map((expr) => expr.trim()) };
@@ -93,8 +93,8 @@ const parse = {
 
         return {
             expr: expr.trim(),
-            fn: parts[0] ? create_render_function(parts[0]) : undefined,
-            else_fn: parts[1] ? create_render_function(parts[1]) : undefined,
+            fn: parts[0] ? create_render_code_string(parts[0]) : undefined,
+            else_fn: parts[1] ? create_render_code_string(parts[1]) : undefined,
             key: trimmedVar,
             keys: trimmedVar.startsWith("{") || trimmedVar.startsWith("[") ? trimmedVar.slice(1, -1).split(",").map(v => v.trim()) : [],
             index_key: indexVar?.trim() || "",
@@ -112,10 +112,10 @@ const parse = {
 
         return {
             expr: promiseExpr.trim(),
-            pending_fn: pending ? create_render_function(pending) : undefined,
-            then_fn: thenMatch && thenMatch[2] ? create_render_function(thenMatch[2]) : undefined,
+            pending_fn: pending ? create_render_code_string(pending) : undefined,
+            then_fn: thenMatch && thenMatch[2] ? create_render_code_string(thenMatch[2]) : undefined,
             then_key: thenMatch && thenMatch[1] || undefined,
-            catch_fn: catchMatch && catchMatch[2] ? create_render_function(catchMatch[2]) : undefined,
+            catch_fn: catchMatch && catchMatch[2] ? create_render_code_string(catchMatch[2]) : undefined,
             catch_key: catchMatch && catchMatch[1] || undefined,
         };
     },
