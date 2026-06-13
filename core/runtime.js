@@ -13,7 +13,7 @@
 /** @typedef {IfBlock | EachBlock | AwaitBlock | PropsBlock | SlotBlock | CoreBlock} BlockCache */
 
 /** @type {any | null} */
-let parameters = null;
+let arg_global = null;
 
 const CORE = {
     version: "0.4.0",
@@ -40,12 +40,12 @@ const CORE = {
         node.__cacheText = node.nodeValue = text;
     },
     get_param_args: function () {
-        const args = parameters;
-        parameters = null;
+        const args = arg_global;
+        arg_global = null;
         return args;
     },
     set_param_args: function (...args) {
-        parameters = args;
+        arg_global = args;
     },
     /**
      * @param {Node} node
@@ -641,7 +641,7 @@ ${
         const component${i}_components = $CORE.block_cache.get("${block.component_id}");
         const component${i}_props = Object.create(component${i}.props);
         ${component.dynamic_props.length > 0 ? `\n\t\tcomponent${i}.props[$CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ")} };\n` : ''}
-        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code.replaceAll("\n", "\n\t")}});`}).join("\n\n\t")
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
 }${
         (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
             instruction.use_directives.map((directive, i) => {

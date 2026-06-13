@@ -1,70 +1,36 @@
 <script>
-    import { signal, set_context, get_context } from "../core/runtime.js";
     import { component } from "../core/parser/handlebar.js";
+    import { signal, bind } from "../core/runtime.js";
     import { Router } from "../lib/router.js";
 
     export const PropSlotExample = component("sfc/PropSlotExample.html");
+    export const Todo = component("sfc/Todo.html");
 
-    export default function(props) {
+    export default function() {
 
-        set_context("key", "value");
-
-        console.log(get_context("key"));
-
-        const promise = () => {
-            const x = count();
-            return new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    if (x % 2 === 0) reject("count % 2 === 0");
-                    return resolve(x);
-                }, 1000);
-            })
-        }
-
-        const [items, setItems] = signal([
-            { name : "Mary", age : 38 },
-            { name : "Matt", age : 40 },
-            { name : "Harold", age : 34 },
-        ]);
-
-        const [show, setShow] = signal(true);
         const [name, setName] = signal("John");
         const [count, setCount] = signal(0);
 
-        setTimeout(() => {
-            items()[0].age = 36;
-            console.log("updated mary's age");
-        }, 5000)
+        const myaction = (node, arg) => {
+            console.log("HEEEELLO", node, arg);
+        }
     }
 </script>
 
-<h1>Hello {{ name() }}</h1>
-<input type="text" on:input="(e) => setName(e.target.value)" :value="name()">
-<p>count {{ count() }}</p>
-<button on:click="() => setCount(count()+1)">Click Me to Increment Count</button>
-<button on:click="() => setShow(!show())">Click to toggle show</button>
-
-{{#if show()}}
-    <h1>Conditional Render: {{ name() }}</h1>
+{{#if Router.match("/benchmark").is_match}}
+    {{#await component("sfc/Benchmark.html")}}
+        <h1>Loading Benchmark</h1>
+    {{:then Benchmark}}
+        <CoreComponent default="Benchmark"/>
+    {{/await}}
+{{:else if Router.match("/todo").is_match}}
+    <Todo/>
 {{:else}}
-    <h1>Nothing to Show</h1>
-{{/if}}
-
-<div>
-    {{#each items() as item, i}}
-        <h1>{{ i+1 }}. {{ item().name }}</h1>
-        <p>Age: {{ item().age }}</p>
-        <p>Static Description</p>
-    {{/each}}
-</div>
-
-{{#await promise()}}
-    <h2>Awaiting....</h2>
-{{:then value}}
-    <h1>Word {{ value }}</h1>
-    <PropSlotExample :name="name()">
-        <h1>Hello from parent component {{ name() }}</h1>
+    <button use:myaction="'Hello'" on:click="() => setCount(count()+1)">Count: {{ count() }}</button>
+    <input use:bind="['value', name, setName]">
+    <h1>Hello {{ name() }}</h1>
+    <hr>
+    <PropSlotExample :name="`${name()} ${count()}`">
+        <h1>Hi from Parent Scope {{ count() }}</h1>
     </PropSlotExample>
-{{:catch error}}
-    <p>Error: {{ error }}</p>
-{{/await}}
+{{/if}}
