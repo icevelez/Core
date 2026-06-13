@@ -12,8 +12,8 @@
 
 /** @typedef {IfBlock | EachBlock | AwaitBlock | PropsBlock | SlotBlock | CoreBlock} BlockCache */
 
-/** @type {Node | null} */
-let anchor = null;
+/** @type {any | null} */
+let parameters = null;
 
 const CORE = {
     version: "0.4.0",
@@ -37,13 +37,13 @@ const CORE = {
         if (node.__cacheText === text) return;
         node.__cacheText = node.nodeValue = text;
     },
-    get_anchor: function () {
-        const current_anchor = anchor;
-        anchor = null;
-        return current_anchor;
+    get_param_args: function () {
+        const args = parameters;
+        parameters = null;
+        return args;
     },
-    set_anchor: function (node) {
-        anchor = node;
+    set_param_args: function (...args) {
+        parameters = args;
     },
     /**
      * @param {Node} node
@@ -593,7 +593,7 @@ export async function sfc(url, template_processor) {
     let script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
-    // template = process_components(template, components_id);
+    template = process_components(template, components_id);
     template = template_processor(template);
 
     const render_code_string = create_render_code_string(template);
@@ -637,20 +637,22 @@ export function create_render_code_string(fragment, options) {
 
     const render_code_string = `
         const $CORE = window.__core__;
-        const $ANCHOR = $CORE.get_anchor();
+        const [$ANCHOR, $SLOT_FN] = $CORE.get_param_args();
         const $TEMPLATE = $CORE.fragment_cache[${fragment_cache_index}].cloneNode(true);
 
         const $NODE_START = $TEMPLATE.firstChild;
         const $NODE_END = $TEMPLATE.lastChild;
 
-        ${(instruction.children.length > 0 ? '// DECLARE NODES WITH BINDINGS\n\t' : '') +
+${
+        (instruction.children.length > 0 ? '\t\t// DECLARE NODES WITH BINDINGS\n\t' : '') +
             instruction.children.map((child, i) => {
                 return `\tconst $CHILD${i} = $TEMPLATE${resolve_child_node(child)};`;
             }).join("\n\t")
-        }
+}
 
         const $DISPOSE_FNS = [];
-        ${(instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `
+${
+        (instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `
         // TEXT & ATTRIBUTES
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.effect(() => {
             ${instruction.text_funcs.map((func) => {
@@ -660,32 +662,34 @@ export function create_render_code_string(fragment, options) {
                     return `$CORE.set_attr($CHILD${func.child_index}, ${func.expr}, "${func.property}");`
                 }).join("\n\t\t")}
         })` : ''
-        }${(instruction.events.length > 0 ? '\n\n\t\t// EVENT DELEGATION\n\t\t' : '') +
+}${
+        (instruction.events.length > 0 ? '\n\n\t\t// EVENT DELEGATION\n\t\t' : '') +
         instruction.events.map((event) => {
             return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
         }).join("\n\t\t")
-        }${(instruction.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t' : '') +
+}${
+        (instruction.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t' : '') +
             instruction.component_blocks.map((block, i) => {
                 const component = CORE.block_cache.get(block.props_id);
                 const component_slot_fn_code = CORE.block_cache.get(block.slot_id);
                 return `const component${i} = $CORE.block_cache.get("${block.props_id}");
         const component${i}_components = $CORE.block_cache.get("${block.component_id}");
         const component${i}_props = Object.create(component${i}.props);
-    ${component.dynamic_props.length > 0 ? `\n\tcomponent${i}.props[$CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ")} };\n` : ''
-                    }
-        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code}});`
-            }).join("\n\n\t")
-            }${(instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
+        ${component.dynamic_props.length > 0 ? `\n\tcomponent${i}.props[$CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ")} };\n` : ''}
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code}});`}).join("\n\n\t")
+}${
+        (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
             instruction.use_directives.map((directive, i) => {
                 return `\t$DISPOSE_FNS[${++dispose_fn_i}] = ${directive.func_name}($CHILD${directive.child_index}, (${directive.expr})) || (() => {})`;
             }).join("\n\t")
-            }${instruction.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <CoreSlot/>
-        if (slot_fn) {
+}${
+        instruction.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <CoreSlot/>
+        if ($SLOT_FN) {
             const fragment = document.createDocumentFragment();
-            $DISPOSE_FNS[${++dispose_fn_i}] = slot_fn(fragment);
+            $DISPOSE_FNS[${++dispose_fn_i}] = $SLOT_FN(fragment);
             $CHILD${instruction.slot_child_index}.before(fragment);
         }` : ''
-            }
+}
 
         $ANCHOR.append($TEMPLATE);
 
@@ -766,7 +770,7 @@ export function mount(app, target) {
     context[DEFER_MOUNT_FNS] = [];
 
     set_new_context(context);
-    CORE.set_anchor(target);
+    CORE.set_param_args(target);
     const dispose = app();
 
     for (const [fn, cb] of context[DEFER_MOUNT_FNS]) cb(fn());
