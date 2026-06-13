@@ -1,0 +1,14 @@
+<script>
+    import { signal, bind } from "../core/runtime.js";
+
+    export default function() {
+
+        const [name, setName] = signal("John");
+        const [count, setCount] = signal(0);
+
+    }
+</script>
+
+<h1>Hello {{ name() }}</h1>
+<input on:input="(e) => setName(e.target.value)" :value="name()">
+<button on:click="() => setCount(count()+1)">Count: {{ count() }}</button>

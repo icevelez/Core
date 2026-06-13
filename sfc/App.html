@@ -5,6 +5,7 @@
 
     export const PropSlotExample = component("sfc/PropSlotExample.html");
     export const Todo = component("sfc/Todo.html");
+    export const Example = component("sfc/Example.html");
 
     export default function() {
 
@@ -25,6 +26,8 @@
     {{/await}}
 {{:else if Router.match("/todo").is_match}}
     <Todo/>
+{{:else if Router.match("/example").is_match}}
+    <Example/>
 {{:else}}
     <button use:myaction="'Hello'" on:click="() => setCount(count()+1)">Count: {{ count() }}</button>
     <input use:bind="['value', name, setName]">
