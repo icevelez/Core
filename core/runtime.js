@@ -18,9 +18,9 @@ let parameters = null;
 const CORE = {
     version: "0.4.0",
     show_anchor_blocks : true, // flag to use comment node instead of text node as anchor, good for debugging
-    IDX_STATE: Symbol(),
-    ARR_STATE: Symbol(),
     PRP_STATE: Symbol(),
+    IS_MOUNTED: Symbol(),
+    DEFER_MOUNT_FNS: Symbol(),
     effect,
     is_signal,
     /** @type {DocumentFragment[]} */
@@ -29,6 +29,8 @@ const CORE = {
     block_cache: new Map(),
     /** @type {Map<string, WeakMap<Node, Set<Function>>>} */
     delegated_events: new Map(),
+    set_new_context,
+    create_new_context,
     /**
      * @param {Node} node
      * @param {string} text
@@ -122,14 +124,12 @@ const CORE = {
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
      * @param {Node} anchor
-     * @param {any} $
-     * @param {string} id
      * @param {(($:any) => Boolean)[]} condition_fns
+     * @param {(() => (() => void))[]} template_fns
      */
-    if: function (anchor, $, id, condition_fns) {
+    if: function (anchor, condition_fns, template_fns) {
         const fragment = document.createDocumentFragment();
-        const if_block = CORE.block_cache.get(id);
-        const fns = if_block.fns;
+        const fns = template_fns;
 
         let prev_fn
         let dispose;
@@ -138,7 +138,7 @@ const CORE = {
             let curr_fn;
 
             for (let i = 0; i < condition_fns.length; i++) {
-                if (!condition_fns[i]($)) continue;
+                if (!condition_fns[i]()) continue;
                 curr_fn = fns[i];
                 break;
             }
@@ -150,7 +150,8 @@ const CORE = {
             if (!curr_fn) return;
 
             try {
-                dispose = curr_fn(fragment, $);
+                CORE.set_param_args(fragment);
+                dispose = curr_fn();
                 anchor.before(fragment);
             } catch (error) {
                 console.trace(error);
@@ -165,28 +166,21 @@ const CORE = {
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
      * @param {Node} anchor
-     * @param {any} $
-     * @param {string} id
      * @param {() => any[]} arr_fn
-     * @param {Object} descriptor
+     * @param {() => (() => void)} then_fn
+     * @param {() => (() => void)} else_fn
      */
-    each: function (anchor, $, id, arr_fn, descriptor) {
+    each: function (anchor, arr_fn, then_fn, else_fn) {
         let else_block_dispose_fn = null;
         let existing_dispose_blocks = [];
 
         const fragment = document.createDocumentFragment();
-        const each_block = CORE.block_cache.get(id);
-        const $sub = Object.create($);
-        Object.defineProperties($sub, descriptor);
-
         const start_node = CORE.show_anchor_blocks ? new Comment("each-block-start") : new Text("");
         anchor.before(start_node);
 
         const effect_dispose = CORE.effect(() => {
             try {
                 const arr = arr_fn();
-
-                $sub[CORE.ARR_STATE] = arr;
 
                 if (!arr || arr?.length <= 0) {
                     if (existing_dispose_blocks.length > 0) {
@@ -197,8 +191,9 @@ const CORE = {
                     for (const dispose of existing_dispose_blocks) dispose();
                     existing_dispose_blocks.length = 0;
 
-                    if (!each_block.else_fn || else_block_dispose_fn) return;
-                    else_block_dispose_fn = each_block.else_fn(fragment, $);
+                    if (!else_fn || else_block_dispose_fn) return;
+                    CORE.set_param_args(fragment);
+                    else_block_dispose_fn = each_block.else_fn();
                     anchor.before(fragment);
                     return;
                 }
@@ -219,10 +214,9 @@ const CORE = {
                         continue;
                     }
 
-                    const $ = Object.create($sub);
-                    $[CORE.IDX_STATE] = i;
-
-                    const dispose = each_block.fn(fragment, $);
+                    CORE.set_param_args(fragment);
+                    const index = i; // snapshot of i
+                    const dispose = then_fn(() => arr[index], index);
                     new_each_dispose_blocks.push(dispose);
                 }
 
@@ -250,11 +244,12 @@ const CORE = {
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
      * @param {Node} anchor
-     * @param {any} $
-     * @param {string} id
      * @param {() => Promise<any>} await_fn
+     * @param {() => (() => void)} pending_fn
+     * @param {() => ((value:any) => void)} then_fn
+     * @param {() => (() => void)} catch_fn
      */
-    await: function (anchor, $, id, await_fn) {
+    await: function (anchor, await_fn, pending_fn, then_fn, catch_fn) {
         let pending_dispose_fn;
         let dispose_fn;
         let last_id;
@@ -271,9 +266,8 @@ const CORE = {
             }
         }
 
-        const await_block = CORE.block_cache.get(id);
         const fragment = document.createDocumentFragment();
-        const context = create_new_context(); // GET CURRENT CONTEXT TO RE-SET WHEN FULLFILLING A PROMISE / CATCHING AN ERROR
+        // const context = create_new_context(); // GET CURRENT CONTEXT TO RE-SET WHEN FULLFILLING A PROMISE / CATCHING AN ERROR
 
         const effect_dispose = CORE.effect(() => {
             const promise = new Promise(async (resolve) => { try { resolve([await await_fn(), null]) } catch (error) { resolve([null, error]); } });
@@ -281,24 +275,23 @@ const CORE = {
             last_id = curr_id;
 
             if (!(promise instanceof Promise)) {
-                dispose_fn = await_block.then_fn(fragment, $);
+                CORE.set_param_args(fragment);
+                dispose_fn = then_fn(promise);
                 anchor.before(fragment);
                 return dispose_fn;
             }
 
-            pending_dispose_fn = await_block.pending_fn(fragment, $);
+            CORE.set_param_args(fragment);
+            pending_dispose_fn = pending_fn();
             anchor.before(fragment);
 
             promise.then(([value, error]) => {
                 if (last_id !== curr_id) return;
 
-                const $sub = Object.create($);
-                if (!error && await_block.then_key) $sub[await_block.then_key] = value;
-                if (error && await_block.catch_key) $sub[await_block.catch_key] = error;
-
-                const old_context = set_new_context(context);
-                dispose_fn = (error ? await_block.catch_fn : await_block.then_fn)(fragment, $sub);
-                set_new_context(old_context);
+                // const old_context = set_new_context(context);
+                CORE.set_param_args(fragment);
+                dispose_fn = (error ? catch_fn : then_fn)(error ? error : value);
+                // set_new_context(old_context);
 
                 pending_dispose_fn();
                 pending_dispose_fn = null;
@@ -323,7 +316,8 @@ const CORE = {
      */
     core_component: function (anchor, fn, props, slot_fn) {
         const fragment = document.createDocumentFragment();
-        const dispose = (fn.default ? fn.default : fn)(fragment, props, slot_fn);
+        CORE.set_param_args(fragment, slot_fn);
+        const dispose = (fn.default ? fn.default : fn)(props);
         anchor.before(fragment);
         return dispose;
     }
@@ -539,13 +533,12 @@ export function process_components(template, imported_component_id) {
 //         const on_destroy_fn = $.onDestroy;
 //         $.onDestroy = $.onMount = undefined;
 
-//         let on_mount_dispose_fn;
-
 //         const context = create_new_context();
 //         const old_context = set_new_context(context);
 //         const dispose = template_fn(anchor, $, slot_fn);
 //         set_new_context(old_context);
 
+//         let on_mount_dispose_fn;
 //         if (typeof on_mount_fn === "function") {
 //             if (context[IS_MOUNTED]) {
 //                 on_mount_dispose_fn = on_mount_fn();
@@ -587,7 +580,7 @@ export async function sfc(url, template_processor) {
     });
     if (error) throw error;
 
-    if (!script) return new Function(create_render_code_string(template));
+    if (!script) return new Function(create_render_code_string(template, { include_context : true, include_lifecycle : true }));
 
     const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
     let script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
@@ -596,14 +589,14 @@ export async function sfc(url, template_processor) {
     template = process_components(template, components_id);
     template = template_processor(template);
 
-    const render_code_string = create_render_code_string(template);
+    const render_code_string = create_render_code_string(template, { include_context : true, include_lifecycle : true });
     const user_code = extract_default_function(script_content);
-    script_content = script_content.replace(user_code, `${user_code}\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED CODE BY THE RUNTIME COMPILER - IT IS ESSENTIALLY YOUR TEMPLATE */\n\t\t${render_code_string}`);
+    script_content = script_content.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
     const script_blob = new Blob([script_content], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
 
-    const { default: render_function, components: component_promises } = await import(script_url);
+    const { default: render_function, ...component_promises } = await import(script_url);
 
     const components_keys = Object.keys(component_promises || {});
     const components_arr = await Promise.all(components_keys.map((k) => component_promises[k]));
@@ -635,6 +628,7 @@ export function create_render_code_string(fragment, options) {
     const fragment_cache_index = CORE.fragment_cache.length;
     CORE.fragment_cache.push(fragment);
 
+    // "init_core" is only true for user-defined components, it is false for "if/each/await" block since $CORE is scoped to the parent
     const render_code_string = `
         const $CORE = window.__core__;
         const [$ANCHOR, $SLOT_FN] = $CORE.get_param_args();
@@ -642,8 +636,11 @@ export function create_render_code_string(fragment, options) {
 
         const $NODE_START = $TEMPLATE.firstChild;
         const $NODE_END = $TEMPLATE.lastChild;
-
 ${
+    options?.include_context ? `
+        const $CONTEXT = $CORE.create_new_context();
+        const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);\n\n` : '\n'
+}${
         (instruction.children.length > 0 ? '\t\t// DECLARE NODES WITH BINDINGS\n\t' : '') +
             instruction.children.map((child, i) => {
                 return `\tconst $CHILD${i} = $TEMPLATE${resolve_child_node(child)};`;
@@ -668,36 +665,70 @@ ${
             return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
         }).join("\n\t\t")
 }${
-        (instruction.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t' : '') +
+        (instruction.blocks.length > 0 ? '\n\n\t\t// IF/EACH/AWAIT BLOCKS\n\t\t' : '') +
+        instruction.blocks.sort((a,b) => a.type.localeCompare(b.type)).map((block) => {
+            const block_data = CORE.block_cache.get(block.id);
+            const each_fn = (fn) => `(${block_data.key}${block_data.index_key ? `, ${block_data.index_key}` : ''}) => {${fn.replaceAll("\n", "\n\t")}}`;
+            const await_fn = (fn, key = "") => fn ? `(${key}) => {${fn.replaceAll("\n", "\n\t")}}` : 'null';
+            if (block.type === "if") {
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.if($CHILD${block.child_index}, [\n\t\t\t${block_data.exprs.map((expr) => `(() => ${expr})`).join(",\n\t\t\t")}\n\t\t], [\n\t\t${block_data.fns.map((fn) => `() => {${fn.replaceAll("\n", "\n\t")}}`).join(",\n\t\t")}\n\t\t]);`
+            } else if (block.type === "each") {
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.each($CHILD${block.child_index}, (() => ${block_data.expr}), ${each_fn(block_data.fn)}${block_data.else_fn ? `, ${each_fn(block_data.else_fn)}` : ''})`;
+            } else if (block.type === "await") {
+                const block_data = CORE.block_cache.get(block.id);
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.await($CHILD${block.child_index}, (() => ${block_data.expr}), ${await_fn(block_data.pending_fn)}, ${await_fn(block_data.then_fn, block_data.then_key)}, ${await_fn(block_data.catch_fn, block_data.catch_key)});`
+            }
+        }).join("\n\n\t\t")
+}${
+        (instruction.component_blocks.length > 0 ? '\n\n\t\t// IMPORTED COMPONENTS like <Component/> or\n\t\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t\t' : '') +
             instruction.component_blocks.map((block, i) => {
                 const component = CORE.block_cache.get(block.props_id);
                 const component_slot_fn_code = CORE.block_cache.get(block.slot_id);
                 return `const component${i} = $CORE.block_cache.get("${block.props_id}");
         const component${i}_components = $CORE.block_cache.get("${block.component_id}");
         const component${i}_props = Object.create(component${i}.props);
-        ${component.dynamic_props.length > 0 ? `\n\tcomponent${i}.props[$CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ")} };\n` : ''}
-        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code}});`}).join("\n\n\t")
+        ${component.dynamic_props.length > 0 ? `\n\t\tcomponent${i}.props[$CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ")} };\n` : ''}
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code.replaceAll("\n", "\n\t")}});`}).join("\n\n\t")
 }${
         (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
             instruction.use_directives.map((directive, i) => {
                 return `\t$DISPOSE_FNS[${++dispose_fn_i}] = ${directive.func_name}($CHILD${directive.child_index}, (${directive.expr})) || (() => {})`;
             }).join("\n\t")
 }${
-        instruction.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <CoreSlot/>
+        instruction.slot_child_index > -1 ? `\n\n\t\t// COMPONENT SLOT like <CoreSlot/>
         if ($SLOT_FN) {
             const fragment = document.createDocumentFragment();
-            $DISPOSE_FNS[${++dispose_fn_i}] = $SLOT_FN(fragment);
+            $CORE.set_param_args(fragment);
+            $DISPOSE_FNS[${++dispose_fn_i}] = $SLOT_FN();
             $CHILD${instruction.slot_child_index}.before(fragment);
         }` : ''
 }
 
         $ANCHOR.append($TEMPLATE);
-
+${
+        options?.include_lifecycle ? `
+        let $ON_MOUNT_DISPOSE_FN;
+        if (typeof onMount === "function") {
+            if ($CONTEXT[$CORE.IS_MOUNTED]) {
+                $ON_MOUNT_DISPOSE_FN = onMount();
+            } else {
+                $CONTEXT[$CORE.DEFER_MOUNT_FNS].push([onMount, (fn) => $ON_MOUNT_DISPOSE_FN = fn]);
+            }
+        }
+        ` : ''
+}${
+        options?.include_context ? `\n\t\t// RESET CONTEXT\n\t\t$CORE.set_new_context($OLD_CONTEXT);\n` : ''
+}
         // CLEAN UP
-        return () => {
+        return () => {${
+            options?.include_lifecycle ? `\n\t\t\tif (typeof $ON_MOUNT_DISPOSE_FN === "function") $ON_MOUNT_DISPOSE_FN();
+            if (typeof onDestroy === "function") onDestroy();\n` : ''
+        }
             for (const fn of $DISPOSE_FNS) fn();
             $DISPOSE_FNS.length = 0;
-
+        ${
+            options?.include_context ? `\n\t\t\t// RESET CONTEXT\n\t\t\t$CORE.set_new_context($OLD_CONTEXT);\n` : ''
+        }
             const parent_node = $NODE_START.parentNode;
             if (parent_node) $CORE.remove_nodes(parent_node, $NODE_START, $NODE_END);
         }\n\t`;
@@ -755,9 +786,6 @@ export function get_context(key) {
 
 // LIFECYCLE API
 
-const IS_MOUNTED = Symbol("is_mounted");
-const DEFER_MOUNT_FNS = Symbol("defer_mount_fns");
-
 /**
  * @param {CoreComponent} app
  * @param {HTMLElement} target
@@ -766,17 +794,17 @@ const DEFER_MOUNT_FNS = Symbol("defer_mount_fns");
 export function mount(app, target) {
     const context = create_new_context();
 
-    context[IS_MOUNTED] = false;
-    context[DEFER_MOUNT_FNS] = [];
+    context[CORE.IS_MOUNTED] = false;
+    context[CORE.DEFER_MOUNT_FNS] = [];
 
     set_new_context(context);
     CORE.set_param_args(target);
     const dispose = app();
 
-    for (const [fn, cb] of context[DEFER_MOUNT_FNS]) cb(fn());
+    for (const [fn, cb] of context[CORE.DEFER_MOUNT_FNS]) cb(fn());
 
-    context[DEFER_MOUNT_FNS].length = 0;
-    context[IS_MOUNTED] = true;
+    context[CORE.DEFER_MOUNT_FNS].length = 0;
+    context[CORE.IS_MOUNTED] = true;
 
     return dispose;
 }
