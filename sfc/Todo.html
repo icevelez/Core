@@ -1,31 +1,30 @@
 <script>
-    import { todo } from "./store.js";
-    import { signal, effect } from "../core/runtime.js";
+    import { todos } from "./store.js";
+    import { signal, bind } from "../core/runtime.js";
 
     console.log("Hello from Todo");
 
-    export default function($) {
-        $.todo_store = todo;
-        $.todo_completed = () => $.todo_store.state.filter((todo) => todo.done).length;
-        $.new_todo = signal("");
+    export default function(props) {
+        const todo_completed = () => todos.state.filter((todo) => todo.done).length;
+        const [new_todo, set_new_todo] = signal("");
     }
 </script>
 
 <div>
-    <input bind:value="$.new_todo" type="text" placeholder="New Todo">
-    <button on:click="() => { $.todo_store.add_todo($.new_todo()); $.new_todo.set(''); }">
+    <input use:bind="['value', new_todo, set_new_todo]" type="text" placeholder="New Todo">
+    <button on:click="() => { todos.add_todo(new_todo()); set_new_todo(''); }">
         Add Todo
     </button>
 </div>
 <div>
-    <h2>Completed: {{ $.todo_completed() }} / {{ $.todo_store.state.length }}</h2>
-    {{#each $.todo_store.state as { todo, done }, i}}
+    <h2>Completed: {{ todo_completed() }} / {{ todos.state.length }}</h2>
+    {{#each todos.state as todo, i}}
         <div>
             <label style="display: flex; gap: 0.5rem; user-select: none;">
-                <input type="checkbox" :checked="$.done" on:click="() => $.todo_store.toggle_todo($.i)"/>
-                <p>{{ $.todo }}{{ $.done ? ' ✅ ' : '' }}</p>
+                <input type="checkbox" :checked="todo().done" on:click="() => todos.toggle_todo(i)"/>
+                <p>{{ todo().todo }}{{ todo().done ? ' ✅ ' : '' }}</p>
             </label>
-            <button on:click="() => $.todo_store.remove_todo($.i)">Remove</button>
+            <button on:click="() => todos.remove_todo(i)">Remove</button>
         </div>
     {{/each}}
 </div>

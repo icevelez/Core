@@ -2,9 +2,15 @@
 <html>
     <head>
         <title>Core Playground</title>
-        <script src="index.js" type="module" defer></script>
     </head>
     <body>
         <div id="app"></div>
+        <script type="module" defer>
+            import { component } from "./core/parser/handlebar.js";
+            import { mount } from "./core/runtime.js";
+
+            const App = await component("sfc/App.html");
+            mount(App, document.getElementById("app"));
+        </script>
     </body>
 </html>

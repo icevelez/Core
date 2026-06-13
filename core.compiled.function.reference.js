@@ -101,7 +101,7 @@ function anonymous(anchor, $, slot_fn) {
     // USE DIRECTIVE
     dispose_fns[9] = $.user_defined_function(child8, (/** use_directive expr */ null))
 
-    // COMPONENT SLOT like <Core:slot/>
+    // COMPONENT SLOT like <CoreSlot/>
     if (slot_fn) {
         const slot_anchor = new Text("");
         const fragment = document.createDocumentFragment();

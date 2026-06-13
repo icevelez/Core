@@ -1,6 +1,5 @@
 <script>
-    import { component } from "../core/parser/handlebar.js";
-    import { load, signal } from "../core/runtime.js";
+    import { signal } from "../core/runtime.js";
 
     let rowId = 1;
 
@@ -69,11 +68,11 @@
         #label = signal(`${adjectives[_random(adjectives.length)]} ${colours[_random(colours.length)]} ${nouns[_random(nouns.length)]}`);
 
         get label() {
-            return this.#label();
+            return this.#label[0]();
         };
 
         set label(v) {
-            this.#label.set(v);
+            this.#label[1](v);
             return true;
         }
     }
@@ -90,19 +89,17 @@
         return data;
     }
 
-    export default class {
+    export default function(props) {
 
-        constructor() {
-            setTimeout(() => {
-                this.runLots();
-                console.log("running run lots...");
-            }, 1000)
-        }
+        setTimeout(() => {
+            runLots();
+            console.log("running run lots...");
+        }, 1000)
 
-        data = signal([]);
-        selected = signal(null);
+        const [data, setData] = signal([]);
+        const [selected, setSelected] = signal(null);
 
-        add = () => {
+        const add = () => {
             console.time('add');
             this.data().push(...buildData(1000));
             requestAnimationFrame(() => {
@@ -110,19 +107,19 @@
             });
         }
 
-        clear = () => {
+        const clear = () => {
             console.time('clear');
             // this.data.set([])
-            this.data().length = 0;
+            data().length = 0;
             requestAnimationFrame(() => {
                 console.timeEnd('clear');
             });
         };
 
-        partialUpdate = () => {
+        const partialUpdate = () => {
             console.time('partial update');
             for (let i = 0; i < this.data().length; i += 10) {
-                const row = this.data()[i];
+                const row = data()[i];
                 row.label = row.label + ' !!!';
             }
             requestAnimationFrame(() => {
@@ -130,27 +127,27 @@
             });
         };
 
-        remove = (row) => {
+        const remove = (row) => {
             console.time('remove');
-            this.data().splice(this.data().indexOf(row), 1);
+            data().splice(data().indexOf(row), 1);
             requestAnimationFrame(() => {
                 console.timeEnd('remove');
             });
         };
 
-        run = () => {
+        const run = () => {
             console.time('run');
-            this.data.set(buildData(1000))
+            setData(buildData(1000))
             requestAnimationFrame(() => {
                 console.timeEnd('run');
             });
         };
 
-        runLots = () => {
+        const runLots = () => {
             // const n = (new Date()).getTime()
 
             console.time('runLots');
-            this.data.set(buildData(10000))
+            setData(buildData(10000))
 
             requestAnimationFrame(() => {
                 console.timeEnd('runLots');
@@ -159,18 +156,18 @@
             })
         };
 
-        swapRows = () => {
-            const tmp = this.data();
+        const swapRows = () => {
+            const tmp = data();
             if (tmp < 998) return;
 
             const a = tmp[1];
             tmp[1] = tmp[998];
             tmp[998] = a;
 
-            this.data.set(tmp);
+            setData(tmp);
         };
 
-        onMount = () => {
+        function onMount() {
             console.log("Benchmark on mount", document.body);
             return () => {
                 console.log("Benchmark on mount dispose")
@@ -188,17 +185,17 @@
 			<div class="col-md-6">
 				<div class="row">
 					<div class="col-sm-6 smallpad">
-						<button type="button" class="btn btn-primary btn-block" id="run" on:click="$.run">
+						<button type="button" class="btn btn-primary btn-block" id="run" on:click="run">
 						    Create 1,000 rows
 						</button>
 					</div>
 					<div class="col-sm-6 smallpad">
-						<button type="button" class="btn btn-primary btn-block" id="runlots" on:click="$.runLots">
+						<button type="button" class="btn btn-primary btn-block" id="runlots" on:click="runLots">
 						    Create 10,000 rows
 						</button>
 					</div>
 					<div class="col-sm-6 smallpad">
-						<button type="button" class="btn btn-primary btn-block" id="add" on:click="$.add">
+						<button type="button" class="btn btn-primary btn-block" id="add" on:click="add">
 							Append 1,000 rows
 						</button>
 					</div>
@@ -207,12 +204,12 @@
 							type="button"
 							class="btn btn-primary btn-block"
 							id="update"
-							on:click="$.partialUpdate">
+							on:click="partialUpdate">
 							Update every 10th row
 						</button>
 					</div>
 					<div class="col-sm-6 smallpad">
-						<button type="button" class="btn btn-primary btn-block" id="clear" on:click="$.clear">
+						<button type="button" class="btn btn-primary btn-block" id="clear" on:click="clear">
 							Clear
 						</button>
 					</div>
@@ -221,7 +218,7 @@
 							type="button"
 							class="btn btn-primary btn-block"
 							id="swaprows"
-							on:click="$.swapRows">
+							on:click="swapRows">
 							Swap Rows
 						</button>
 					</div>
@@ -231,14 +228,14 @@
 	</div>
 	<table class="table table-hover table-striped test-data">
 		<tbody>
-			{{#each $.data() as { id, label }, i}}
-				<tr :class="$.selected() === $.id ? 'danger' : ''">
-				    <td class="col-md-1">{{$.id}}</td>
+			{{#each data() as item, i}}
+				<tr :class="selected() === item().id ? 'danger' : ''">
+				    <td class="col-md-1">{{item().id}}</td>
 					<td class="col-md-4">
-						<a on:click="() => $.selected.set($.id)">{{ $.i+1 }} {{$.label}}</a>
+						<a on:click="() => selected.set(item().id)">{{ i+1 }} {{item().label}}</a>
 					</td>
 					<td class="col-md-1">
-					    <a on:click="() => $.remove($.data()[$.i])">
+					    <a on:click="() => remove(data()[i])">
 						    Delete
 						</a>
 					</td>

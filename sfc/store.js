@@ -12,7 +12,7 @@ const todo_arr = [
     }
 ];
 
-export const todo = create_controller_store(todo_arr, {
+export const todos = create_controller_store(todo_arr, {
     add_todo: (value, todo) => {
         value.push({ todo, done: false });
         return value;

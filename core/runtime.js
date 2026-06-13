@@ -1,4 +1,4 @@
-/** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Processes */
+/** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Instruction */
 
 /** @typedef {(anchor:Node, $:any, slot_fn:Function) => (() => void)} CoreBlock the compiled render function which returns a function to dispose any event and reactive effect */
 /** @typedef {(anchor:Node, props:Record<string, any>, slot_fn:Function) => (() => void)} CoreComponent the function that wraps both the data and render function */
@@ -12,12 +12,15 @@
 
 /** @typedef {IfBlock | EachBlock | AwaitBlock | PropsBlock | SlotBlock | CoreBlock} BlockCache */
 
+/** @type {any | null} */
+let arg_global = null;
+
 const CORE = {
     version: "0.4.0",
     show_anchor_blocks : true, // flag to use comment node instead of text node as anchor, good for debugging
-    IDX_STATE: Symbol(),
-    ARR_STATE: Symbol(),
     PRP_STATE: Symbol(),
+    IS_MOUNTED: Symbol(),
+    DEFER_MOUNT_FNS: Symbol(),
     effect,
     is_signal,
     /** @type {DocumentFragment[]} */
@@ -26,6 +29,8 @@ const CORE = {
     block_cache: new Map(),
     /** @type {Map<string, WeakMap<Node, Set<Function>>>} */
     delegated_events: new Map(),
+    set_new_context,
+    create_new_context,
     /**
      * @param {Node} node
      * @param {string} text
@@ -33,6 +38,14 @@ const CORE = {
     set_text: function (node, text) {
         if (node.__cacheText === text) return;
         node.__cacheText = node.nodeValue = text;
+    },
+    get_param_args: function () {
+        const args = arg_global;
+        arg_global = null;
+        return args;
+    },
+    set_param_args: function (...args) {
+        arg_global = args;
     },
     /**
      * @param {Node} node
@@ -45,7 +58,7 @@ const CORE = {
         node.__cacheAttr[property] = value;
 
         if (property === "value") {
-            node.nodeValue = value;
+            node.value = value;
         } else if (property === "checked") {
             node.checked = value === "true" || value === true;
             node.setAttribute(property, node.checked ? "" : value);
@@ -111,14 +124,12 @@ const CORE = {
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
      * @param {Node} anchor
-     * @param {any} $
-     * @param {string} id
      * @param {(($:any) => Boolean)[]} condition_fns
+     * @param {(() => (() => void))[]} template_fns
      */
-    if: function (anchor, $, id, condition_fns) {
+    if: function (anchor, condition_fns, template_fns) {
         const fragment = document.createDocumentFragment();
-        const if_block = CORE.block_cache.get(id);
-        const fns = if_block.fns;
+        const fns = template_fns;
 
         let prev_fn
         let dispose;
@@ -127,7 +138,7 @@ const CORE = {
             let curr_fn;
 
             for (let i = 0; i < condition_fns.length; i++) {
-                if (!condition_fns[i]($)) continue;
+                if (!condition_fns[i]()) continue;
                 curr_fn = fns[i];
                 break;
             }
@@ -138,8 +149,13 @@ const CORE = {
             if (dispose) dispose();
             if (!curr_fn) return;
 
-            dispose = curr_fn(fragment, $);
-            anchor.before(fragment);
+            try {
+                CORE.set_param_args(fragment);
+                dispose = curr_fn();
+                anchor.before(fragment);
+            } catch (error) {
+                console.trace(error);
+            }
         }, { track_inner_effect: false })
 
         return () => {
@@ -150,74 +166,74 @@ const CORE = {
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
      * @param {Node} anchor
-     * @param {any} $
-     * @param {string} id
      * @param {() => any[]} arr_fn
-     * @param {Object} descriptor
+     * @param {() => (() => void)} then_fn
+     * @param {() => (() => void)} else_fn
      */
-    each: function (anchor, $, id, arr_fn, descriptor) {
+    each: function (anchor, arr_fn, then_fn, else_fn) {
         let else_block_dispose_fn = null;
         let existing_dispose_blocks = [];
 
         const fragment = document.createDocumentFragment();
-        const each_block = CORE.block_cache.get(id);
-        const $sub = Object.create($);
-        Object.defineProperties($sub, descriptor);
-
         const start_node = CORE.show_anchor_blocks ? new Comment("each-block-start") : new Text("");
         anchor.before(start_node);
 
         const effect_dispose = CORE.effect(() => {
-            const arr = arr_fn();
+            try {
+                const arr = arr_fn();
 
-            $sub[CORE.ARR_STATE] = arr;
+                if (!arr || arr?.length <= 0) {
+                    if (existing_dispose_blocks.length > 0) {
+                        const parent_node = anchor.parentNode;
+                        CORE.remove_nodes(parent_node, start_node.nextSibling, anchor.previousSibling);
+                    }
 
-            if (!arr || arr?.length <= 0) {
-                if (existing_dispose_blocks.length > 0) {
-                    const parent_node = anchor.parentNode;
-                    CORE.remove_nodes(parent_node, start_node.nextSibling, anchor.previousSibling);
+                    for (const dispose of existing_dispose_blocks) dispose();
+                    existing_dispose_blocks.length = 0;
+
+                    if (!else_fn || else_block_dispose_fn) return;
+                    CORE.set_param_args(fragment);
+                    else_block_dispose_fn = each_block.else_fn();
+                    anchor.before(fragment);
+                    return;
                 }
 
-                for (const dispose of existing_dispose_blocks) dispose();
-                existing_dispose_blocks.length = 0;
-
-                if (!each_block.else_fn || else_block_dispose_fn) return;
-                else_block_dispose_fn = each_block.else_fn(fragment, $);
-                anchor.before(fragment);
-                return;
-            }
-
-            if (else_block_dispose_fn) {
-                else_block_dispose_fn()
-                else_block_dispose_fn = null;
-            }
-
-            const new_each_dispose_blocks = [];
-
-            let i = -1;
-            for (const ar of arr) {
-                i++;
-
-                if (existing_dispose_blocks[i]) {
-                    new_each_dispose_blocks.push(existing_dispose_blocks[i]);
-                    continue;
+                if (else_block_dispose_fn) {
+                    else_block_dispose_fn()
+                    else_block_dispose_fn = null;
                 }
 
-                const $ = Object.create($sub);
-                $[CORE.IDX_STATE] = i;
+                const new_each_dispose_blocks = [];
 
-                const dispose = each_block.fn(fragment, $);
-                new_each_dispose_blocks.push(dispose);
+                const is_array = Array.isArray(arr);
+                const is_map_or_set = arr instanceof Map || arr instanceof Set;
+
+                let i = -1;
+                for (const ar of arr) {
+                    i++;
+
+                    if (existing_dispose_blocks[i]) {
+                        new_each_dispose_blocks.push(existing_dispose_blocks[i]);
+                        continue;
+                    }
+
+                    CORE.set_param_args(fragment);
+                    const index = i; // snapshot of i
+                    const dispose = then_fn(is_array ? (() => arr[index]) : is_map_or_set ? (() => arr.get(ar)) : () => ar, index);
+                    new_each_dispose_blocks.push(dispose);
+                }
+
+                // TEAR DOWN BLOCKS THAT ARE BEYOND THE NEW ARRAY LENGTH
+                for (let i = new_each_dispose_blocks.length; i < existing_dispose_blocks.length; i++) {
+                    existing_dispose_blocks[i]();
+                }
+
+                if (new_each_dispose_blocks.length > 0) anchor.before(fragment);
+
+                existing_dispose_blocks = new_each_dispose_blocks;
+            } catch (error) {
+                console.trace(error);
             }
-
-            // TEAR DOWN BLOCKS THAT ARE BEYOND THE NEW ARRAY LENGTH
-            for (let i = new_each_dispose_blocks.length; i < existing_dispose_blocks.length; i++) {
-                existing_dispose_blocks[i]();
-            }
-
-            if (new_each_dispose_blocks.length > 0) anchor.before(fragment);
-
-            existing_dispose_blocks = new_each_dispose_blocks;
         }, { track_inner_effect: false })
 
         return () => {
@@ -231,11 +247,12 @@ const CORE = {
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
      * @param {Node} anchor
-     * @param {any} $
-     * @param {string} id
      * @param {() => Promise<any>} await_fn
+     * @param {() => (() => void)} pending_fn
+     * @param {() => ((value:any) => void)} then_fn
+     * @param {() => (() => void)} catch_fn
      */
-    await: function (anchor, $, id, await_fn) {
+    await: function (anchor, await_fn, pending_fn, then_fn, catch_fn) {
         let pending_dispose_fn;
         let dispose_fn;
         let last_id;
@@ -252,9 +269,8 @@ const CORE = {
             }
         }
 
-        const await_block = CORE.block_cache.get(id);
         const fragment = document.createDocumentFragment();
-        const context = create_new_context(); // GET CURRENT CONTEXT TO RE-SET WHEN FULLFILLING A PROMISE / CATCHING AN ERROR
+        // const context = create_new_context(); // GET CURRENT CONTEXT TO RE-SET WHEN FULLFILLING A PROMISE / CATCHING AN ERROR
 
         const effect_dispose = CORE.effect(() => {
             const promise = new Promise(async (resolve) => { try { resolve([await await_fn(), null]) } catch (error) { resolve([null, error]); } });
@@ -262,24 +278,23 @@ const CORE = {
             last_id = curr_id;
 
             if (!(promise instanceof Promise)) {
-                dispose_fn = await_block.then_fn(fragment, $);
+                CORE.set_param_args(fragment);
+                dispose_fn = then_fn(promise);
                 anchor.before(fragment);
                 return dispose_fn;
             }
 
-            pending_dispose_fn = await_block.pending_fn(fragment, $);
+            CORE.set_param_args(fragment);
+            pending_dispose_fn = pending_fn();
             anchor.before(fragment);
 
             promise.then(([value, error]) => {
                 if (last_id !== curr_id) return;
 
-                const $sub = Object.create($);
-                if (!error && await_block.then_key) $sub[await_block.then_key] = value;
-                if (error && await_block.catch_key) $sub[await_block.catch_key] = error;
-
-                const old_context = set_new_context(context);
-                dispose_fn = (error ? await_block.catch_fn : await_block.then_fn)(fragment, $sub);
-                set_new_context(old_context);
+                // const old_context = set_new_context(context);
+                CORE.set_param_args(fragment);
+                dispose_fn = (error ? catch_fn : then_fn)(error ? error : value);
+                // set_new_context(old_context);
 
                 pending_dispose_fn();
                 pending_dispose_fn = null;
@@ -304,7 +319,8 @@ const CORE = {
      */
     core_component: function (anchor, fn, props, slot_fn) {
         const fragment = document.createDocumentFragment();
-        const dispose = (fn.default ? fn.default : fn)(fragment, props, slot_fn);
+        CORE.set_param_args(fragment, slot_fn);
+        const dispose = (fn.default ? fn.default : fn)(props);
         anchor.before(fragment);
         return dispose;
     }
@@ -333,11 +349,11 @@ function replace_node_with_anchor(node, text) {
 /**
  * @param {Node} node
  * @param {number[]} node_index
- * @param {Processes} processes
+ * @param {Instruction} instruction
  */
-function process_node(node, node_index = [], processes = { children: [], events: [], bindings: [], attr_funcs: [], text_funcs: [], blocks: [], core_component_blocks: [], component_blocks: [], use_directives: [], slot_child_index: -1 }) {
+function discover_node_instruction(node, node_index = [], instruction = { children: [], events: [], bindings: [], attr_funcs: [], text_funcs: [], blocks: [], core_component_blocks: [], component_blocks: [], use_directives: [], slot_child_index: -1 }) {
     const isStyle = node instanceof HTMLStyleElement;
-    if (isStyle) return processes;
+    if (isStyle) return instruction;
 
     const handlebar_re = /({{(?:(?!}}).)*}})/g;
     const handlebar_capture_inner_expression_re = /{{\s*(.+?)\s*}}/g;
@@ -347,22 +363,22 @@ function process_node(node, node_index = [], processes = { children: [], events:
         const expression = node.textContent;
         const parts = expression.split(handlebar_re);
         const has_handlebars = parts.map(p => p.startsWith("{{")).filter(p => p === true).length > 0;
-        if (!has_handlebars) return processes;
+        if (!has_handlebars) return instruction;
 
         node.textContent = "";
-        processes.children.push(node_index);
-        processes.text_funcs.push({ child_index: processes.children.length - 1, expr: `\`${expression.replace(handlebar_capture_inner_expression_re, (_, e) => "${" + e + "}")}\`` });
-        return processes;
+        instruction.children.push(node_index);
+        instruction.text_funcs.push({ child_index: instruction.children.length - 1, expr: `\`${expression.replace(handlebar_capture_inner_expression_re, (_, e) => "${" + e + "}")}\`` });
+        return instruction;
     }
 
-    if (node.nodeType === Node.COMMENT_NODE) return processes;
+    if (node.nodeType === Node.COMMENT_NODE) return instruction;
 
     const isCoreSlotNode = (node) => Boolean(node.dataset && node.dataset.block === "core-slot");
     if (isCoreSlotNode(node)) {
         replace_node_with_anchor(node, "component-slot");
-        processes.children.push(node_index);
-        processes.slot_child_index = processes.children.length - 1;
-        return processes;
+        instruction.children.push(node_index);
+        instruction.slot_child_index = instruction.children.length - 1;
+        return instruction;
     }
 
     const isComponentNode = (node) => Boolean(node.dataset && node.dataset.block === "component");
@@ -377,17 +393,17 @@ function process_node(node, node_index = [], processes = { children: [], events:
         if (is_core_component_node && !component) throw "no default component found";
         if (is_component_node && (!component_id || !component_tag)) throw "component not found";
         replace_node_with_anchor(node, "component-block");
-        processes.children.push(node_index);
-        processes.component_blocks.push({ child_index: processes.children.length - 1, component, component_id, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
-        return processes;
+        instruction.children.push(node_index);
+        instruction.component_blocks.push({ child_index: instruction.children.length - 1, component, component_id, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
+        return instruction;
     }
 
     const isBlockNode = (node) => Boolean(node.dataset && node.dataset.block && node.dataset.blockId)
     if (isBlockNode(node)) {
         replace_node_with_anchor(node, node.dataset.block + "-block");
-        processes.children.push(node_index);
-        processes.blocks.push({ child_index: processes.children.length - 1, type: node.dataset.block, id: node.dataset.blockId });
-        return processes;
+        instruction.children.push(node_index);
+        instruction.blocks.push({ child_index: instruction.children.length - 1, type: node.dataset.block, id: node.dataset.blockId });
+        return instruction;
     }
 
     if (node.attributes) {
@@ -397,34 +413,22 @@ function process_node(node, node_index = [], processes = { children: [], events:
             if (attrName.startsWith('use:')) {
                 const expr = attrVal;
                 const func_name = attrName.slice(4);
-                if (!processes.children.includes(node_index)) processes.children.push(node_index);
-                processes.use_directives.push({ child_index: processes.children.length - 1, func_name, expr });
-
-                node.removeAttribute(attrName);
-            } else if (attrName.startsWith('bind:')) {
-                const property = attrName.slice(5);
-                const event_name_dictionary = {
-                    "checked": node.type === "date" ? "change" : "click",
-                    "value": node.tagName === "select" ? "change" : "input",
-                };
-                const event_name = event_name_dictionary[property] ? event_name_dictionary[property] : property;
-
-                if (!processes.children.includes(node_index)) processes.children.push(node_index);
-                processes.bindings.push({ child_index: processes.children.length - 1, event_name, property, var : attrVal });
+                if (!instruction.children.includes(node_index)) instruction.children.push(node_index);
+                instruction.use_directives.push({ child_index: instruction.children.length - 1, func_name, expr });
 
                 node.removeAttribute(attrName);
             } else if (attrName.startsWith('on:')) {
                 const expr = attrVal;
                 const event_name = attrName.slice(3);
 
-                if (!processes.children.includes(node_index)) processes.children.push(node_index);
-                processes.events.push({ child_index: processes.children.length - 1, event_name, expr });
+                if (!instruction.children.includes(node_index)) instruction.children.push(node_index);
+                instruction.events.push({ child_index: instruction.children.length - 1, event_name, expr });
 
                 node.removeAttribute(attrName);
             } else if (attrName.startsWith(":")) {
                 const expr = attrVal;
-                if (!processes.children.includes(node_index)) processes.children.push(node_index);
-                processes.attr_funcs.push({ child_index: processes.children.length - 1, expr, property: attrName.slice(1, attrName.length) });
+                if (!instruction.children.includes(node_index)) instruction.children.push(node_index);
+                instruction.attr_funcs.push({ child_index: instruction.children.length - 1, expr, property: attrName.slice(1, attrName.length) });
 
                 node.removeAttribute(attrName);
             }
@@ -432,9 +436,9 @@ function process_node(node, node_index = [], processes = { children: [], events:
     }
 
     const childNodes = Array.from(node.childNodes);
-    for (let i = 0; i < childNodes.length; i++) process_node(childNodes[i], [...node_index, i], processes);
+    for (let i = 0; i < childNodes.length; i++) discover_node_instruction(childNodes[i], [...node_index, i], instruction);
 
-    return processes;
+    return instruction;
 }
 
 /** @type {(nums:number[]) => string} */
@@ -466,127 +470,6 @@ function remove_whitespace_nodes(root) {
 }
 
 /**
- * @param {DocumentFragment | string} fragment
- */
-export function compile_template(fragment) {
-    if (typeof fragment === "string") {
-        const templateEl = document.createElement("template");
-        templateEl.innerHTML = fragment;
-        fragment = templateEl.content;
-    }
-
-    remove_whitespace_nodes(fragment) // this should be executed before processing any template to prevent empty text nodes that are used as anchor points for rendering to be mistakenly removed
-
-    let dispose_fn_i = -1;
-
-    const processes = process_node(fragment);
-    const fragment_cache_index = CORE.fragment_cache.length;
-    CORE.fragment_cache.push(fragment);
-
-    /** @type {CoreBlock} */
-    const func = new Function('anchor', '$', 'slot_fn',
-    `\tconst CORE = window.__core__;
-    const fragment = CORE.fragment_cache[${fragment_cache_index}].cloneNode(true);
-
-    const node_start = fragment.firstChild;
-    const node_end = fragment.lastChild;
-
-    /** @type {Function[]} */
-    const dispose_fns = [];
-
-${
-    (processes.children.length > 0 ? '\t// NODES WITH DYNAMIC PROPERTY\n\t' : '') +
-    processes.children.map((child, i) => {
-        return `const child${i} = fragment${resolve_child_node(child)};`;
-    }).join("\n\t")
-}${
-    (processes.text_funcs.length > 0 || processes.attr_funcs.length > 0) ? `\n
-    // TEXT & ATTRIBUTES
-    dispose_fns[${++dispose_fn_i}] = CORE.effect(() => {
-        ${
-        processes.text_funcs.map((func) => {
-            return `CORE.set_text(child${func.child_index}, ${func.expr});`
-        }).join("\n\t\t")}${
-        (processes.attr_funcs.length > 0 ? "\n\t\t" : "") +
-        processes.attr_funcs.map((func, i) => {
-            return `CORE.set_attr(child${func.child_index}, ${func.expr}, "${func.property}");`
-        }).join("\n\t")}
-    })` : ''
-}${
-    (processes.events.length > 0 ? '\n\n\t// EVENT DELEGATION\n\t' : '') +
-    processes.events.map((event) => {
-        return `dispose_fns[${++dispose_fn_i}] = CORE.delegate("${event.event_name}", child${event.child_index}, (${event.expr}));`
-    }).join("\n\t")
-}${
-    (processes.bindings.length > 0 ? '\n\n\t// TWO WAY DATA BINDING\n\t' : '') +
-    processes.bindings.map((bind) => {
-        return `dispose_fns[${++dispose_fn_i}] = CORE.delegate("${bind.event_name}", child${bind.child_index}, ((event) => CORE.is_signal(${bind.var}) ? ${bind.var}.set(event.target.${bind.property}) : (${bind.var} = event.target.${bind.property})))
-    dispose_fns[${++dispose_fn_i}] = CORE.effect(() => (child${bind.child_index}.${bind.property} = CORE.is_signal(${bind.var}) ? ${bind.var}() : ${bind.var}));`
-    }).join("\n\n\t")
-}${
-    (processes.blocks.length > 0 ? '\n\n\t// IF/EACH/AWAIT BLOCKS\n\t' : '') +
-    processes.blocks.sort((a,b) => a.type.localeCompare(b.type)).map((block) => {
-        const block_data = CORE.block_cache.get(block.id);
-        if (block.type === "if") {
-            return `dispose_fns[${++dispose_fn_i}] = CORE.if(child${block.child_index}, $, "${block.id}", [\n\t\t${block_data.exprs.map((expr) => `(($) => ${expr})`).join(",\n\t\t")}\n\t]);`
-        } else if (block.type === "each") {
-            return `dispose_fns[${++dispose_fn_i}] = CORE.each(child${block.child_index}, $, "${block.id}", (() => ${block_data.expr}), {
-        ${
-            block_data.keys && block_data.keys.length > 0 ?
-                `${block_data.keys.map((key) => `${key} : { get() { return this[CORE.ARR_STATE][this[CORE.IDX_STATE]].${key} }, set(v) { this[CORE.ARR_STATE][this[CORE.IDX_STATE]].${key} = v; } }`).join(",\n\t\t")}` :
-                `${block_data.key} : { get() { return this[CORE.ARR_STATE][this[CORE.IDX_STATE]] }, set(v) { this[CORE.ARR_STATE][this[CORE.IDX_STATE]] = v; } }`
-        }${
-            block_data.index_key ? `,\n\t\t${block_data.index_key} : { get() { return this[CORE.IDX_STATE]; } }` : ''
-        }
-    })`;
-        } else if (block.type === "await") {
-            const block_data = CORE.block_cache.get(block.id);
-            return `dispose_fns[${++dispose_fn_i}] = CORE.await(child${block.child_index}, $, "${block.id}", (() => ${block_data.expr}));`
-        }
-    }).join("\n\n\t")
-}${
-    (processes.component_blocks.length > 0 ? '\n\n\t// IMPORTED COMPONENTS like <Component/> or\n\t// CORE COMPONENTS like <Core:component default="component_function"/>\n\t' : '') +
-    processes.component_blocks.map((block, i) => {
-        const component = CORE.block_cache.get(block.props_id);
-        return `const component${i} = CORE.block_cache.get("${block.props_id}");
-    const component${i}_components = CORE.block_cache.get("${block.component_id}");
-    const component${i}_slot_fn = CORE.block_cache.get("${block.slot_id}");
-    const component${i}_props = Object.create(component${i}.props);
-${
-    component.dynamic_props.length > 0 ? `\n\tcomponent${i}.props[CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ") } };\n` : ''
-}
-    dispose_fns[${++dispose_fn_i}] = CORE.core_component(child${block.child_index}, ${block.component ? `$.${block.component}` : `component${i}_components.${block.component_tag}` }, component${i}_props, (anchor) => component${i}_slot_fn(anchor, $));`}).join("\n\n\t")
-}${
-    (processes.use_directives.length > 0 ? '\n\n\t// USE DIRECTIVE\n\t' : '') +
-    processes.use_directives.map((directive, i) => {
-        return `dispose_fns[${++dispose_fn_i}] = $.${directive.func_name}(child${directive.child_index}, (${directive.expr})) || (() => {})`;
-    }).join("\n\t")
-}${
-    processes.slot_child_index > -1 ? `\n\n\t// COMPONENT SLOT like <Core:slot/>
-    if (slot_fn) {
-        const fragment = document.createDocumentFragment();
-        dispose_fns[${++dispose_fn_i}] = slot_fn(fragment);
-        child${processes.slot_child_index}.before(fragment);
-    }` : ''
-}
-
-    anchor.append(fragment);
-
-    // CLEAN UP
-    return () => {
-        for (const fn of dispose_fns) fn();
-        dispose_fns.length = 0;
-
-        const parent_node = node_start.parentNode;
-        if (!parent_node) return;
-
-        CORE.remove_nodes(parent_node, node_start, node_end);
-    }`);
-
-    return func;
-}
-
-/**
 * Replaces all custom HTML Tags with a placeholder element to be processed as components
 * @param {string} template
 * @param {number} imported_component_id
@@ -603,7 +486,8 @@ export function process_components(template, imported_component_id) {
             }
         })
 
-        if (inner_content) add_block_to_cache(slot_id, compile_template(inner_content));
+        // REPLACE "create_render_function"
+        if (inner_content) add_block_to_cache(slot_id, create_render_code_string(inner_content));
 
         // USED TO ATTACH DYNAMIC PROPS WITHOUT TRIGGER A GETTER BY USING A HIDDEN PROPERTY "CORE.PRP_STATE" SYMBOL CONTAINING FUNCTION TO REFERENCE THE PROP VALUE
         // THE DYNAMIC PROP VALUE IS A FUNCTION CALL MADE BY THE TEMPLATE COMPILER
@@ -619,8 +503,8 @@ export function process_components(template, imported_component_id) {
 
         add_block_to_cache(props_id, { props, dynamic_props });
 
-        if (match.startsWith("<Core:slot")) return `<template data-block="core-slot"></template>`;
-        if (match.startsWith("<Core:component")) {
+        if (match.startsWith("<CoreSlot")) return `<template data-block="core-slot"></template>`;
+        if (match.startsWith("<CoreComponent")) {
             const _default = props.default;
             delete props.default;
             return `<template data-block="core-component" data-block-props-id="${props_id}" data-component="${_default}" ${slot_id ? `data-slot-id="${slot_id}"` : ''}></template>`;
@@ -631,50 +515,204 @@ export function process_components(template, imported_component_id) {
 }
 
 /**
-* @param {{ template : string, components : Record<string, Function> }} options
-* @param {Object | ($:Object, props:Object) => void} Data object that encapsulate data and logic
-* @param {(template:string) => DocumentFragment} template_processor
-*/
-export function create_component(options, Data, template_processor) {
-    if (Data && typeof Data !== "function") throw new Error("Data is not a function");
+ * @param {string} url
+ * @param {DocumentFragment} template_processor
+ */
+export async function sfc(url, template_processor) {
+    if (!window.sfc) window.sfc = sfc;
 
-    const data_fn = new Function('Data', 'props', `${!Data ? 'return Object.create(null);' : Data.toString().startsWith("class") ? 'return new Data(props)' : 'const $ = Object.create(null); Data($, props); return $;'}`);
+    let { script, template, error } = await fetch(url).then(async response => {
+        const text = await response.text();
+        if (!response.ok) return { error: text };
+
+        const base = document.createElement("template");
+        base.innerHTML = text;
+
+        const scriptEl = base.content.querySelector("script");
+        const script = scriptEl?.innerHTML || "";
+        const template = text.replace(scriptEl?.outerHTML, "");
+
+        return { script, template };
+    });
+    if (error) throw error;
+
+    if (!script) return new Function(create_render_code_string(template, { include_context : true, include_lifecycle : true }));
+
+    const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
+    let script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
-    const template = process_components(options.template, components_id);
-    const template_fn = compile_template(template_processor(template));
+    template = process_components(template, components_id);
+    template = template_processor(template);
 
-    if (options.components && Object.keys(options.components).length > 0) CORE.block_cache.set(components_id, options.components);
+    const render_code_string = create_render_code_string(template, { include_context : true, include_lifecycle : true });
+    const user_code = extract_default_function(script_content);
+    script_content = script_content.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
-    return (anchor, props, slot_fn) => {
-        const $ = data_fn(Data, props);
-        const on_mount_fn = $.onMount;
-        const on_destroy_fn = $.onDestroy;
-        $.onDestroy = $.onMount = undefined;
+    const script_blob = new Blob([script_content], { type: 'text/javascript' });
+    const script_url = URL.createObjectURL(script_blob);
 
-        let on_mount_dispose_fn;
+    const { default: render_function, ...component_promises } = await import(script_url);
 
-        const context = create_new_context();
-        const old_context = set_new_context(context);
-        const dispose = template_fn(anchor, $, slot_fn);
-        set_new_context(old_context);
+    const components_keys = Object.keys(component_promises || {});
+    const components_arr = await Promise.all(components_keys.map((k) => component_promises[k]));
+    const components = {};
 
-        if (typeof on_mount_fn === "function") {
-            if (context[IS_MOUNTED]) {
-                on_mount_dispose_fn = on_mount_fn();
+    for (let i = 0; i < components_keys.length; i++) components[components_keys[i]] = components_arr[i];
+    if (components_keys.length > 0) add_block_to_cache(components_id, components);
+
+    return render_function
+}
+
+/**
+ *
+ * @param {DocumentFragment} fragment
+ * @param {{ include_lifecycle : boolean, include_context : boolean }} options
+ */
+export function create_render_code_string(fragment, options) {
+    if (typeof fragment === "string") {
+        const templateEl = document.createElement("template");
+        templateEl.innerHTML = fragment;
+        fragment = templateEl.content;
+    }
+
+    remove_whitespace_nodes(fragment) // this should be executed before processing any template to prevent empty text nodes that are used as anchor points for rendering to be mistakenly removed
+
+    let dispose_fn_i = -1;
+
+    const instruction = discover_node_instruction(fragment);
+    const fragment_cache_index = CORE.fragment_cache.length;
+    CORE.fragment_cache.push(fragment);
+
+    // "init_core" is only true for user-defined components, it is false for "if/each/await" block since $CORE is scoped to the parent
+    const render_code_string = `
+        const $CORE = window.__core__;
+        const [$ANCHOR, $SLOT_FN] = $CORE.get_param_args();
+        const $TEMPLATE = $CORE.fragment_cache[${fragment_cache_index}].cloneNode(true);
+
+        const $NODE_START = $TEMPLATE.firstChild;
+        const $NODE_END = $TEMPLATE.lastChild;
+${
+    options?.include_context ? `
+        const $CONTEXT = $CORE.create_new_context();
+        const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);\n\n` : '\n'
+}${
+        (instruction.children.length > 0 ? '\t\t// DECLARE NODES WITH BINDINGS\n\t' : '') +
+            instruction.children.map((child, i) => {
+                return `\tconst $CHILD${i} = $TEMPLATE${resolve_child_node(child)};`;
+            }).join("\n\t")
+}
+
+        const $DISPOSE_FNS = [];
+${
+        (instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `
+        // TEXT & ATTRIBUTES
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.effect(() => {
+            ${instruction.text_funcs.map((func) => {
+                return `$CORE.set_text($CHILD${func.child_index}, ${func.expr});`
+            }).join("\n\t\t\t")}${(instruction.attr_funcs.length > 0 ? "\n\t\t\t" : "") +
+                instruction.attr_funcs.map((func, i) => {
+                    return `$CORE.set_attr($CHILD${func.child_index}, ${func.expr}, "${func.property}");`
+                }).join("\n\t\t")}
+        })` : ''
+}${
+        (instruction.events.length > 0 ? '\n\n\t\t// EVENT DELEGATION\n\t\t' : '') +
+        instruction.events.map((event) => {
+            return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
+        }).join("\n\t\t")
+}${
+        (instruction.blocks.length > 0 ? '\n\n\t\t// IF/EACH/AWAIT BLOCKS\n\t\t' : '') +
+        instruction.blocks.sort((a,b) => a.type.localeCompare(b.type)).map((block) => {
+            const block_data = CORE.block_cache.get(block.id);
+            const each_fn = (fn) => `(${block_data.key}${block_data.index_key ? `, ${block_data.index_key}` : ''}) => {${fn.replaceAll("\n", "\n\t")}}`;
+            const await_fn = (fn, key = "") => fn ? `(${key}) => {${fn.replaceAll("\n", "\n\t")}}` : 'null';
+            if (block.type === "if") {
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.if($CHILD${block.child_index}, [\n\t\t\t${block_data.exprs.map((expr) => `(() => ${expr})`).join(",\n\t\t\t")}\n\t\t], [\n\t\t${block_data.fns.map((fn) => `() => {${fn.replaceAll("\n", "\n\t")}}`).join(",\n\t\t")}\n\t\t]);`
+            } else if (block.type === "each") {
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.each($CHILD${block.child_index}, (() => ${block_data.expr}), ${each_fn(block_data.fn)}${block_data.else_fn ? `, ${each_fn(block_data.else_fn)}` : ''})`;
+            } else if (block.type === "await") {
+                const block_data = CORE.block_cache.get(block.id);
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.await($CHILD${block.child_index}, (() => ${block_data.expr}), ${await_fn(block_data.pending_fn)}, ${await_fn(block_data.then_fn, block_data.then_key)}, ${await_fn(block_data.catch_fn, block_data.catch_key)});`
+            }
+        }).join("\n\n\t\t")
+}${
+        (instruction.component_blocks.length > 0 ? '\n\n\t\t// IMPORTED COMPONENTS like <Component/> or\n\t\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t\t' : '') +
+            instruction.component_blocks.map((block, i) => {
+                const component = CORE.block_cache.get(block.props_id);
+                const component_slot_fn_code = CORE.block_cache.get(block.slot_id);
+                return `const component${i} = $CORE.block_cache.get("${block.props_id}");
+        const component${i}_components = $CORE.block_cache.get("${block.component_id}");
+        const component${i}_props = Object.create(component${i}.props);
+        ${component.dynamic_props.length > 0 ? `\n\t\tcomponent${i}.props[$CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ")} };\n` : ''}
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
+}${
+        (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
+            instruction.use_directives.map((directive, i) => {
+                return `\t$DISPOSE_FNS[${++dispose_fn_i}] = ${directive.func_name}($CHILD${directive.child_index}, (${directive.expr})) || (() => {})`;
+            }).join("\n\t")
+}${
+        instruction.slot_child_index > -1 ? `\n\n\t\t// COMPONENT SLOT like <CoreSlot/>
+        if ($SLOT_FN) {
+            const fragment = document.createDocumentFragment();
+            $CORE.set_param_args(fragment);
+            $DISPOSE_FNS[${++dispose_fn_i}] = $SLOT_FN();
+            $CHILD${instruction.slot_child_index}.before(fragment);
+        }` : ''
+}
+
+        $ANCHOR.append($TEMPLATE);
+${
+        options?.include_lifecycle ? `
+        let $ON_MOUNT_DISPOSE_FN;
+        if (typeof onMount === "function") {
+            if ($CONTEXT[$CORE.IS_MOUNTED]) {
+                $ON_MOUNT_DISPOSE_FN = onMount();
             } else {
-                context[DEFER_MOUNT_FNS].push([on_mount_fn, (fn) => on_mount_dispose_fn = fn]);
+                $CONTEXT[$CORE.DEFER_MOUNT_FNS].push([onMount, (fn) => $ON_MOUNT_DISPOSE_FN = fn]);
             }
         }
+        ` : ''
+}${
+        options?.include_context ? `\n\t\t// RESET CONTEXT\n\t\t$CORE.set_new_context($OLD_CONTEXT);\n` : ''
+}
+        // CLEAN UP
+        return () => {${
+            options?.include_lifecycle ? `\n\t\t\tif (typeof $ON_MOUNT_DISPOSE_FN === "function") $ON_MOUNT_DISPOSE_FN();
+            if (typeof onDestroy === "function") onDestroy();\n` : ''
+        }
+            for (const fn of $DISPOSE_FNS) fn();
+            $DISPOSE_FNS.length = 0;
+        ${
+            options?.include_context ? `\n\t\t\t// RESET CONTEXT\n\t\t\t$CORE.set_new_context($OLD_CONTEXT);\n` : ''
+        }
+            const parent_node = $NODE_START.parentNode;
+            if (parent_node) $CORE.remove_nodes(parent_node, $NODE_START, $NODE_END);
+        }\n\t`;
 
-        return () => {
-            if (typeof on_mount_dispose_fn === "function") on_mount_dispose_fn();
-            if (typeof on_destroy_fn === "function") on_destroy_fn();
+    return render_code_string;
+}
 
-            dispose();
-            set_new_context(old_context);
-        };
-    };
+function extract_default_function(source) {
+    const match = /export\s+default\s+function(?:\s+\w+)?\s*\(/.exec(source);
+    if (!match) return null;
+
+    let i = source.indexOf("{", match.index);
+    if (i === -1) return null;
+
+    const start = i;
+    let depth = 1;
+
+    while (++i < source.length) {
+        const ch = source[i];
+
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+            depth--;
+            if (depth === 0) return source.slice(start + 1, i);
+        }
+    }
+
+    return null;
 }
 
 window.__core__ = CORE;
@@ -704,9 +742,6 @@ export function get_context(key) {
 
 // LIFECYCLE API
 
-const IS_MOUNTED = Symbol("is_mounted");
-const DEFER_MOUNT_FNS = Symbol("defer_mount_fns");
-
 /**
  * @param {CoreComponent} app
  * @param {HTMLElement} target
@@ -715,16 +750,17 @@ const DEFER_MOUNT_FNS = Symbol("defer_mount_fns");
 export function mount(app, target) {
     const context = create_new_context();
 
-    context[IS_MOUNTED] = false;
-    context[DEFER_MOUNT_FNS] = [];
+    context[CORE.IS_MOUNTED] = false;
+    context[CORE.DEFER_MOUNT_FNS] = [];
 
     set_new_context(context);
-    const dispose = app(target);
+    CORE.set_param_args(target);
+    const dispose = app();
 
-    for (const [fn, cb] of context[DEFER_MOUNT_FNS]) cb(fn());
+    for (const [fn, cb] of context[CORE.DEFER_MOUNT_FNS]) cb(fn());
 
-    context[DEFER_MOUNT_FNS].length = 0;
-    context[IS_MOUNTED] = true;
+    context[CORE.DEFER_MOUNT_FNS].length = 0;
+    context[CORE.IS_MOUNTED] = true;
 
     return dispose;
 }
@@ -885,7 +921,9 @@ export function signal(initial_value) {
     /**
      * @param {T} new_value
      */
-    read.set = (new_value) => {
+    const set = (new_value) => {
+        if (typeof new_value === "function") new_value = new_value(value);
+
         if (is_plain_object(new_value)) {
             const is_proxy = new_value[IS_PROXY];
             const real_value = is_proxy ? new_value[CONTAINER].value : new_value;
@@ -913,21 +951,7 @@ export function signal(initial_value) {
         trigger(dep);
     }
 
-    /**
-     * @param {() => T} fn
-     */
-    read.update = (fn) => {
-        if (typeof fn !== "function") throw "signal update fn is not a function";
-        try {
-            read.set(fn(value));
-        } catch (error) {
-            console.error("signal update error\n", fn, error);
-        }
-    }
-
-    read[SIGNAL] = true;
-
-    return read;
+    return [read, set];
 }
 
 const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
@@ -947,77 +971,86 @@ function create_container(object) {
     };
 }
 
+/** @type {WeakMap<Object, Container>} */
+const object_to_container = new WeakMap();
+const handler = {
+    get(target, key) {
+        const container = object_to_container.get(target);
+
+        if (key === IS_PROXY) return true;
+        if (key === CONTAINER) return container;
+
+        const value = container.value[key];
+        const dep = container.deps[key] || (container.deps[key] = new Set());
+
+        if (!is_plain_object(value)) {
+            if (typeof value !== "function") {
+                track(dep);
+                return value;
+            }
+
+            if (!Array.isArray(target)) return value;
+
+            // Trigger update when target is an array and is being mutated
+            return (...args) => {
+                const result = target[key](...args);
+
+                if (!array_mutation_keys.has(key)) return result;
+
+                trigger(dep);
+                trigger_container(container);
+
+                return result;
+            }
+        }
+
+        track(dep);
+
+        let child_container = container.child_containers[key];
+        if (child_container) {
+            if (child_container.value !== value) {
+                child_container.value = value;
+                child_container.proxy = create_proxy(child_container);
+            }
+            return child_container.proxy;
+        }
+
+        child_container = create_container(value);
+        child_container.proxy = create_proxy(child_container);
+
+        container.child_containers[key] = child_container;
+
+        return child_container.proxy;
+    },
+    set(target, key, value) {
+        const container = object_to_container.get(target);
+        const dep = container.deps[key];
+
+        if (target[key] === value) return true;
+
+        target[key] = value;
+
+        trigger(dep);
+
+        return true;
+    },
+    deleteProperty(target, key) {
+        const container = object_to_container.get(target);
+        delete target[key];
+
+        const dep = container.deps[key];
+        if (dep) trigger(dep);
+
+        return true;
+    }
+}
+
 /**
  * @param {Container} container
  */
 function create_proxy(container) {
-    return new Proxy(container.value, {
-        get(target, key) {
-            if (key === IS_PROXY) return true;
-            if (key === CONTAINER) return container;
-
-            const value = container.value[key];
-            const dep = container.deps[key] || (container.deps[key] = new Set());
-
-            if (!is_plain_object(value)) {
-                if (typeof value !== "function") {
-                    track(dep);
-                    return value;
-                }
-
-                if (!Array.isArray(target)) return value;
-
-                // Trigger update when target is an array and is being mutated
-                return (...args) => {
-                    const result = target[key](...args);
-
-                    if (!array_mutation_keys.has(key)) return result;
-
-                    trigger(dep);
-                    trigger_container(container);
-
-                    return result;
-                }
-            }
-
-            track(dep);
-
-            let child_container = container.child_containers[key];
-            if (child_container) {
-                if (child_container.value !== value) {
-                    child_container.value = value;
-                    child_container.proxy = create_proxy(child_container);
-                }
-                return child_container.proxy;
-            }
-
-            child_container = create_container(value);
-            child_container.proxy = create_proxy(child_container);
-
-            container.child_containers[key] = child_container;
-
-            return child_container.proxy;
-        },
-        set(target, key, value) {
-            const dep = container.deps[key];
-
-            if (target[key] === value) return true;
-
-            target[key] = value;
-
-            trigger(dep);
-
-            return true;
-        },
-        deleteProperty(target, key) {
-            delete target[key];
-
-            const dep = container.deps[key];
-            if (dep) trigger(dep);
-
-            return true;
-        }
-    });
+    object_to_container.set(container.value, container);
+    return new Proxy(container.value, handler);
 }
 
 // HELPER FUNCTIONS
@@ -1032,3 +1065,11 @@ export const make_id = (length) => {
      for (var i = 0; i < length; i++) result += characters.charAt(Math.floor(Math.random() * characters.length));
      return result;
  }
+
+// DIRECTIVES
+
+export function bind(node, [value, get, set]) {
+    const event_name_dictionary = { "checked": node.type === "date" ? "change" : "click", "value": node.tagName === "select" ? "change" : "input" };
+    CORE.delegate(event_name_dictionary[value], node, (e) => set(e.target[value]))
+    return CORE.effect(() => node[value] = get());
+}
