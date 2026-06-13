@@ -512,53 +512,6 @@ export function process_components(template, imported_component_id) {
 }
 
 /**
-* @param {{ template : string, components : Record<string, Function> }} options
-* @param {Object | ($:Object, props:Object) => void} Data object that encapsulate data and logic
-* @param {(template:string) => DocumentFragment} template_processor
-*/
-// export function create_component(options, Data, template_processor) {
-//     if (Data && typeof Data !== "function") throw new Error("Data is not a function");
-
-//     const data_fn = new Function('Data', 'props', `${!Data ? 'return Object.create(null);' : Data.toString().startsWith("class") ? 'return new Data(props)' : 'const $ = Object.create(null); Data($, props); return $;'}`);
-
-//     const components_id = `component-${make_id(6)}`;
-//     const template = process_components(options.template, components_id);
-//     const template_fn = create_render_function(template_processor(template));
-
-//     if (options.components && Object.keys(options.components).length > 0) add_block_to_cache(components_id, options.components);
-
-//     return (anchor, props, slot_fn) => {
-//         const $ = data_fn(Data, props);
-//         const on_mount_fn = $.onMount;
-//         const on_destroy_fn = $.onDestroy;
-//         $.onDestroy = $.onMount = undefined;
-
-//         const context = create_new_context();
-//         const old_context = set_new_context(context);
-//         const dispose = template_fn(anchor, $, slot_fn);
-//         set_new_context(old_context);
-
-//         let on_mount_dispose_fn;
-//         if (typeof on_mount_fn === "function") {
-//             if (context[IS_MOUNTED]) {
-//                 on_mount_dispose_fn = on_mount_fn();
-//             } else {
-//                 context[DEFER_MOUNT_FNS].push([on_mount_fn, (fn) => on_mount_dispose_fn = fn]);
-//             }
-//         }
-
-//         return () => {
-//             if (typeof on_mount_dispose_fn === "function") on_mount_dispose_fn();
-//             if (typeof on_destroy_fn === "function") on_destroy_fn();
-
-//             dispose();
-//             set_new_context(old_context);
-//         };
-//     };
-// }
-
-
-/**
  * @param {string} url
  * @param {DocumentFragment} template_processor
  */
