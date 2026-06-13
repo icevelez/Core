@@ -22,6 +22,5 @@ Refer to the documentation folder
 ## To Do
 
 ```
-- Add Iterable support for {{#each}} 
 - Add Reactivity support for Map/Set
 ```
