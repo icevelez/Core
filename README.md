@@ -1,6 +1,6 @@
-# Core.js Experimental 
+# Core.js 
 
-Version: 4.0.0-dev
+Version: 0.5.0
 
 License: MIT
 
