@@ -1,688 +1,742 @@
 # Core.js Internal Rendering Pipeline
 
-## Overview
+This document explains how Core transforms a Single-File Component (SFC) into a running UI component.
 
-Core.js is a compiler-assisted reactive UI runtime inspired by modern front-end frameworks such as Svelte, Solid, and Vue
-
-The architecture combines:
-
-- Runtime template compilation using `new Function(...)`
-- Fine-grained reactivity using `signals/effects`
-- Cached `DocumentFragment` cloning
-- Optimized block rendering for `{{#each}}`, `{{#if}}`, and `{{#await}}`
-- DOM preprocessing to avoid repeated DOM walking during render
-
-Unlike Virtual DOM frameworks, the runtime attempts to directly bind reactive effects to real DOM nodes.
+Unlike Virtual DOM frameworks, Core compiles templates into executable DOM instructions. The resulting component function directly creates, updates, and disposes DOM nodes.
 
 ---
 
-# High Level Rendering Flow
+# High-Level Overview
 
 ```text
-Template String
-    ↓
-Handlebar-style Block Processing
-    ↓
-Nested Block Extraction
-    ↓
-Placeholder Injection
-    ↓
-Template → DocumentFragment
-    ↓
-DOM Preprocessing
-    ↓
-Dynamic Instruction Collection
-    ↓
-Render Function Generation
-    ↓
-Render Object Cache
-    ↓
-Runtime Execution
-    ↓
-Reactive DOM Updates
+Component.html
+      │
+      ▼
+Load SFC
+      │
+      ▼
+Extract <script>
+Extract Template
+      │
+      ▼
+Process Components
+      │
+      ▼
+Process Blocks
+(if / each / await)
+      │
+      ▼
+Generate Render Code
+      │
+      ▼
+Inject Into Component Function
+      │
+      ▼
+Create ESM Module
+      │
+      ▼
+Dynamic Import
+      │
+      ▼
+Mount Component
 ```
 
 ---
 
-# 1. Component Processing
+# 1. Loading the SFC
 
-The entry point of the framework begins in `handlebar.js`.
-
-A component is created using:
+The entry point is:
 
 ```js
-component(options, Ctx)
+component(url)
 ```
 
-Where:
+which internally calls:
 
-- `options.template` contains the HTML template string
-- `Ctx` is the component state class
+```js
+sfc(url, template_processor)
+```
 
-The compiler converts the HTML template into optimized render functions.
+The file is fetched and split into:
+
+```html
+<script>
+export default function() {
+
+}
+</script>
+
+<h1>Hello World</h1>
+```
+
+becoming:
+
+```js
+{
+    script,
+    template
+}
+```
 
 ---
 
-# 2. Template Block Parsing
+# 2. Extracting User Code
 
-The framework supports block syntax depending on the parser used like Handlebars:
+The compiler locates:
 
-```handlebars
+```js
+export default function() {
+
+}
+```
+
+using:
+
+```js
+extract_default_function()
+```
+
+This function scans braces rather than using a regex to correctly handle nested scopes.
+
+The extracted body becomes:
+
+```js
+const user_code =
+`
+const [count, setCount] = signal(0);
+`
+```
+
+This allows the compiler to inject template rendering instructions directly into the component function.
+
+---
+
+# 3. Component Processing
+
+Before template compilation begins, custom components are processed.
+
+Example:
+
+```html
+<UserCard
+    :name="name()"
+    age="25"
+/>
+```
+
+becomes an internal placeholder:
+
+```html
+<template
+    data-block="component"
+    data-component-tag="UserCard"
+    data-component-id="..."
+    data-block-props-id="..."
+></template>
+```
+
+Metadata is stored inside:
+
+```js
+CORE.block_cache
+```
+
+including:
+
+* static props
+* dynamic props
+* slots
+* component references
+
+---
+
+# 4. Block Extraction
+
+Core separates control-flow blocks from normal HTML.
+
+Supported blocks:
+
+```html
 {{#if}}
 {{#each}}
 {{#await}}
 ```
 
-The template parser recursively searches for nested blocks using a regular expression:
-
-```js
-/{{#(await|if|each)(.*?)}}|{{\/(await|if|each)}}/gs
-```
-
-The parser:
-
-1. Finds opening and closing of block pairs
-2. Tracks nested blocks using a stack
-3. Extracts the outermost blocks first
-4. Recursively replaces nested inner blocks
-
----
-
-# Example
-
-Input:
+Example:
 
 ```html
-{{#if $.logged_in}}
-    <div>
-        {{#each $.users as user}}
-            <p>{user.name}</p>
-        {{/each}}
-    </div>
+{{#if loggedIn()}}
+    Welcome
 {{/if}}
 ```
 
-The parser transforms nested blocks into placeholders:
+becomes:
 
 ```html
-<template data-block="if" data-block-id="if-abc123"></template>
+<template
+    data-block="if"
+    data-block-id="if-abc123">
+</template>
 ```
 
-Nested blocks are recursively replaced before further processing.
+The original block is parsed and stored in:
+
+```js
+CORE.block_cache
+```
+
+This means nested blocks become independent render units.
 
 ---
 
-# 3. Placeholder Injection
+# 5. Block Parsing
 
-Each discovered block receives a generated unique ID.
+Each block type is parsed differently.
 
-Example:
+---
+
+## If Blocks
 
 ```html
-<template data-block="each" data-block-id="each-x8d2af"></template>
+{{#if loading()}}
+    Loading...
+{{:else if error()}}
+    Error
+{{:else}}
+    Success
+{{/if}}
 ```
 
-These placeholders act as mount anchors during runtime rendering.
-
-The generated block ID becomes the lookup key for the compiled render object.
-
----
-
-# 4. Converting HTML Into a DocumentFragment
-
-After block extraction:
-
-1. The remaining clean HTML template is converted into a `<template>` element
-2. The framework retrieves its `DocumentFragment`
-3. The fragment becomes the static cached structure of the component
-
-This allows:
-
-- Efficient cloning
-- No repeated HTML parsing
-- Reuse of static DOM structure
-
-The runtime later clones the cached fragment instead of rebuilding DOM manually.
-
----
-
-# 5. DOM Preprocessing
-
-The framework recursively walks the `DocumentFragment` only once.
-
-This preprocessing stage discovers:
-
-- Dynamic text interpolations
-- Dynamic attributes
-- Event handlers
-- Bindings
-- Components
-- Directives
-- Block placeholders
-
-The discovered instructions are stored in a lightweight metadata object.
-
----
-
-# Example Collected Metadata
+becomes:
 
 ```js
 {
-    text_funcs: [],
-    attr_funcs: [],
-    bindings: [],
-    events: [],
-    blocks: [],
-    component_blocks: []
+    exprs: [
+        "loading()",
+        "error()",
+        "true"
+    ],
+    fns: [
+        renderLoading,
+        renderError,
+        renderSuccess
+    ]
 }
 ```
 
-The framework uses child indexes instead of repeated DOM queries.
-
-This significantly improves runtime performance.
-
 ---
 
-# 6. Whitespace Cleanup
-
-The framework recursively removes empty text nodes.
-
-Purpose:
-
-- Reduce DOM node count
-- Improve traversal speed
-- Reduce unnecessary memory usage
-
-Whitespace-sensitive elements such as:
-
-- `<textarea>`
-- `<pre>`
-
-must be excluded from aggressive whitespace cleanup.
-
----
-
-# 7. Dynamic Node Collection
-
-During preprocessing, the compiler captures:
-
-## Text Expressions
+## Each Blocks
 
 ```html
-<h1>{$.name}</h1>
+{{#each users() as user}}
+    {{ user().name }}
+{{/each}}
 ```
 
-Stored as:
+becomes:
 
 ```js
 {
-    child_index: 0,
-    expr: "$.name"
+    expr: "users()",
+    key: "user",
+    fn: renderUser
 }
 ```
 
+Notice:
+
+```js
+user()
+```
+
+is an accessor.
+
+This allows updates to be scoped to a specific iteration.
+
 ---
 
-## Dynamic Attributes
+## Await Blocks
 
 ```html
-<button disabled="$.loading">
+{{#await fetchUsers()}}
+    Loading...
+{{:then users}}
+    ...
+{{:catch error}}
+    ...
+{{/await}}
 ```
 
-Stored as:
+becomes:
 
 ```js
 {
-    child_index: 1,
-    property: "disabled",
-    expr: "$.loading"
-}
-```
-
----
-
-## Event Handlers
-
-```html
-<button onclick="{$.increment()}">
-```
-
-Stored as:
-
-```js
-{
-    child_index: 2,
-    event_name: "click",
-    expr: "$.increment()"
-}
-```
-
----
-
-## Two-Way Bindings
-
-```html
-<input bind:value="$.name">
-```
-
-Stored as:
-
-```js
-{
-    child_index: 0,
-    property: "value",
-    var: "$.name",
-    event_name: "input"
-}
-```
-
----
-
-# 8. Fragment Cache
-
-Static template fragments are stored globally:
-
-```js
-CORE.fragment_cache
-```
-
-The cache contains preprocessed `DocumentFragment` objects.
-
-During rendering:
-
-```js
-fragment.cloneNode(true)
-```
-
-is used instead of reparsing HTML.
-
-This is one of the largest performance optimizations in the runtime.
-
----
-
-# 9. Render Function Generation
-
-The framework dynamically generates optimized render functions using:
-
-```js
-new Function(...)
-```
-
-The generated code:
-
-- Avoids repeated DOM walking
-- Avoids repeated selector queries
-- Avoids template reparsing
-- Directly references child indexes
-- Installs reactive effects
-
-The generated render function behaves similarly to compiled framework output.
-
----
-
-# Example Conceptual Generated Output
-
-```js
-const child0 = fragment.childNodes[0];
-const text0 = child0.firstChild;
-
-CORE.effect(() => {
-    text0.data = $.name;
-});
-```
-
-Instead of runtime template evaluation.
-
----
-
-# 10. Render Objects
-
-Compiled blocks are stored as specialized render objects.
-
-The structure depends on block type.
-
----
-
-## If Block
-
-```js
-{
-    fns: [],
-    expr: "$.logged_in"
-}
-```
-
----
-
-## Each Block
-
-```js
-{
-    fn,
-    empty_fn,
-    expr,
-    key,
-    keys,
-    index_key
-}
-```
-
----
-
-## Await Block
-
-```js
-{
+    expr: "fetchUsers()",
     pending_fn,
     then_fn,
-    catch_fn,
-    expr
+    catch_fn
 }
 ```
 
-These render objects are stored in a global cache.
+---
+
+# 6. Template Discovery
+
+Once all placeholders are inserted, the compiler analyzes the DOM tree.
+
+```js
+discover_node_instruction(fragment)
+```
+
+collects:
+
+```js
+{
+    children,
+    text_funcs,
+    attr_funcs,
+    events,
+    blocks,
+    component_blocks,
+    use_directives
+}
+```
+
+This is the compiler's internal instruction set.
 
 ---
 
-# 11. Global Block Cache
+# 7. Fragment Cache Creation
 
-Blocks are globally cached using their generated block IDs.
+The parsed template is stored once.
+
+```js
+CORE.fragment_cache.push(fragment);
+```
+
+Each component instance later uses:
+
+```js
+cloneNode(true)
+```
+
+instead of reparsing HTML.
+
+Conceptually:
+
+```js
+const template =
+    fragment_cache[index];
+
+const instance =
+    template.cloneNode(true);
+```
+
+This removes HTML parsing costs during mounting.
+
+---
+
+# 8. Render Code Generation
+
+The compiler generates JavaScript instructions.
 
 Example:
 
-```js
-CORE.block_cache.set(block_id, render_object)
+```html
+<h1>Hello {{ name() }}</h1>
 ```
 
-The runtime later resolves placeholders using these IDs.
-
----
-
-# 12. Runtime Rendering
-
-The compiled render function executes using:
+becomes:
 
 ```js
-render(anchor, ctx)
-```
-
-Where:
-
-- `anchor` is the mount node
-- `ctx` is the reactive component state
-
-The render function:
-
-1. Clones cached fragments
-2. Resolves block placeholders
-3. Installs reactive effects
-4. Attaches event listeners
-5. Mounts child components
-6. Appends DOM nodes
-
----
-
-# 13. Reactive System
-
-The reactive runtime is implemented in `reactivity.js`.
-
-The system is composed of:
-
-- Signals
-- Effects
-- Dependency tracking
-- Batched microtask updates
-- Proxy-based object reactivity
-
----
-
-# Signals
-
-```js
-const count = signal(0);
-```
-
-Signals store reactive values.
-
----
-
-# Effects
-
-```js
-effect(() => {
-    console.log(count());
+$CORE.effect(() => {
+    $CORE.set_text(
+        $CHILD0,
+        `Hello ${name()}`
+    );
 });
 ```
 
-Effects automatically track dependencies.
-
 ---
 
-# Dependency Graph
+## Attribute Bindings
 
-Dependencies are stored using:
-
-```js
-WeakMap<object, dep>
+```html
+<input :value="name()">
 ```
 
-or container-based reactive structures.
+becomes:
 
-This allows:
-
-- Fine-grained updates
-- Automatic dependency tracking
-- Efficient cleanup
+```js
+$CORE.effect(() => {
+    $CORE.set_attr(
+        $CHILD0,
+        name(),
+        "value"
+    );
+});
+```
 
 ---
 
-# 14. Effect Queue Batching
+## Event Bindings
 
-Reactive updates are batched using:
+```html
+<button
+    on:click="increment">
+</button>
+```
+
+becomes:
+
+```js
+$CORE.delegate(
+    "click",
+    $CHILD0,
+    increment
+);
+```
+
+---
+
+# 9. Template Injection
+
+Generated code is injected directly into the component function.
+
+User source:
+
+```js
+export default function() {
+    const [count, setCount] =
+        signal(0);
+}
+```
+
+Compiler output:
+
+```js
+export default function() {
+
+    const [count, setCount] =
+        signal(0);
+
+    /* injected template code */
+
+    const $TEMPLATE =
+        fragment.cloneNode(true);
+
+    ...
+
+    return dispose;
+}
+```
+
+The component function becomes both:
+
+* setup phase
+* render procedure
+
+---
+
+# 10. ESM Module Creation
+
+The modified source is turned into:
+
+```js
+Blob(...)
+```
+
+and dynamically imported:
+
+```js
+import(blob_url)
+```
+
+This produces:
+
+```js
+{
+    default: component,
+    ...
+}
+```
+
+without requiring a build step.
+
+---
+
+# 11. Mounting
+
+Mounting begins with:
+
+```js
+mount(component, target)
+```
+
+Core creates a context:
+
+```js
+const context =
+    create_new_context();
+```
+
+and calls:
+
+```js
+component();
+```
+
+The generated render code then:
+
+```js
+target.append(template);
+```
+
+inserts the DOM.
+
+---
+
+# 12. Lifecycle Execution
+
+Core discovers lifecycle functions by name.
+
+```js
+function onMount() {
+
+}
+```
+
+or
+
+```js
+const onMount = () => {
+
+}
+```
+
+are both valid.
+
+When mounted:
+
+```js
+onMount()
+```
+
+is executed.
+
+If it returns a function:
+
+```js
+return () => {
+
+}
+```
+
+that function becomes the mount cleanup handler.
+
+---
+
+## Destruction Order
+
+```text
+onMount()
+      │
+      ▼
+Component Active
+      │
+      ▼
+Mount Cleanup
+      │
+      ▼
+onDestroy()
+      │
+      ▼
+Dispose Effects
+      │
+      ▼
+Dispose Events
+      │
+      ▼
+Remove DOM
+```
+
+---
+
+# 13. Reactivity Pipeline
+
+Signals drive updates.
+
+```js
+const [count, setCount] =
+    signal(0);
+```
+
+Reading:
+
+```js
+count()
+```
+
+registers the current effect.
+
+Internally:
+
+```text
+Effect
+   │
+   ▼
+Dependency Set
+```
+
+Updating:
+
+```js
+setCount(1)
+```
+
+triggers all subscribed effects.
+
+---
+
+## Effect Scheduling
+
+Effects are not executed immediately.
+
+Core places them into:
+
+```js
+effect_queue
+```
+
+and flushes them through:
 
 ```js
 queueMicrotask(...)
 ```
 
-This prevents:
+This batches multiple updates into a single flush cycle.
 
-- Duplicate effect executions
-- Excessive synchronous DOM updates
-
-The queue behaves similarly to scheduler systems in modern frameworks.
+```text
+Signal Update
+      │
+      ▼
+Queue Effect
+      │
+      ▼
+Microtask Flush
+      │
+      ▼
+Run Effects
+```
 
 ---
 
-# 15. Fine-Grained DOM Updates
+# 14. Context System
 
-Instead of rerendering entire components:
-
-Only the exact affected DOM node updates.
-
-Example:
-
-```html
-<p>{$.name}</p>
-```
-
-becomes:
+Each component receives its own context.
 
 ```js
-text.data = $.name;
+const context =
+    create_new_context();
 ```
 
-without rerendering sibling nodes.
+Contexts form a prototype chain.
 
----
-
-# 16. Each Block Optimization
-
-`{{#each}}` blocks are optimized using:
-
-- Cached sub contexts
-- Child node reuse
-- Keyed rendering
-- Fine-grained effects
-- Fragment cloning
-
-The runtime attempts to update only changed rows.
-
----
-
-# Example
-
-```html
-{{#each $.users as user}}
-    <Row :user="user" />
-{{/each}}
+```text
+Root Context
+      │
+      ▼
+Parent Context
+      │
+      ▼
+Child Context
 ```
 
-Each row receives its own reactive sub-context.
+This powers:
+
+* component hierarchy
+* dependency injection
+* lifecycle coordination
 
 ---
 
-# 17. Sub Context Inheritance
+# 15. Disposal
 
-The framework creates lightweight sub-contexts using:
+Every generated resource returns a cleanup function.
 
 ```js
-Object.create(parent_ctx)
+const $DISPOSE_FNS = [];
 ```
 
-This allows:
-
-- Property inheritance
-- Reduced object duplication
-- Scoped variables inside loops
-
-Example:
+Examples:
 
 ```js
-const $sub = Object.create($);
+effect(...)
+delegate(...)
+if(...)
+each(...)
+await(...)
+component(...)
 ```
 
-Dynamic getters expose loop variables.
+all contribute disposal handlers.
 
----
-
-# 18. Event Binding
-
-Event attributes are transformed into delegated DOM listeners.
-
-Example:
-
-```html
-<button onclick="{$.increment()}">
-```
-
-becomes:
+Destroying a component:
 
 ```js
-CORE.delegate(node, "click", handler)
+dispose()
 ```
 
-Cleanup functions remove listeners during disposal.
+will:
 
----
-
-# 19. Component Rendering
-
-Child components are compiled into render functions.
-
-During rendering:
-
-```js
-Child(anchor, props)
-```
-
-is executed.
-
-Props may contain:
-
-- Static values
-- Dynamic expressions
-- Signals
-- Reactive accessors
-
----
-
-# 20. Cleanup and Disposal
-
-Every render function returns a dispose function.
-
-Purpose:
-
-- Remove effects
-- Remove event listeners
-- Remove child components
-- Prevent memory leaks
-
-Example:
-
-```js
-const dispose = render(anchor, ctx);
-```
-
-Later:
-
-```js
-dispose();
+```text
+Run Lifecycle Cleanup
+      │
+      ▼
+Dispose Effects
+      │
+      ▼
+Dispose Event Delegates
+      │
+      ▼
+Dispose Blocks
+      │
+      ▼
+Dispose Components
+      │
+      ▼
+Remove DOM Nodes
 ```
 
 ---
 
-# 21. Memory Management
+# Core's Philosophy
 
-The framework aggressively attempts to:
+Core treats templates as compile-time syntax rather than runtime data.
 
-- Dispose effects
-- Remove dependency references
-- Clear child render ownership
-- Remove event listeners
-- Remove detached DOM references
+```text
+Template
+      │
+      ▼
+Compiler
+      │
+      ▼
+DOM Instructions
+      │
+      ▼
+JavaScript Component
+```
 
-This is critical for:
+A mounted component does not produce a Virtual DOM tree.
 
-- Large `#each` blocks
-- Dynamic component trees
-- Long-running applications
+Instead, it:
 
----
+1. Clones a cached template fragment.
+2. Creates reactive effects.
+3. Delegates events.
+4. Mounts child blocks and components.
+5. Updates only affected DOM nodes.
+6. Cleans itself up through a unified disposal system.
 
-# 22. Compiler Philosophy
-
-The framework follows a compiler-assisted runtime model.
-
-Instead of:
-
-- Runtime template parsing
-- Virtual DOM diffing
-- Generic reconciliation
-
-The compiler generates:
-
-- Specialized render functions
-- Specialized block handlers
-- Direct DOM update instructions
-
-This allows:
-
-- Faster updates
-- Lower memory usage
-- Fine-grained reactivity
-- Reduced runtime overhead
-
----
-
-# 23. Key Design Goals
-
-The framework prioritizes:
-
-- Fine-grained reactivity
-- Minimal rerendering
-- Direct DOM manipulation
-- Compiler-assisted optimization
-- Cached fragment cloning
-- Minimal runtime traversal
-- Efficient cleanup/disposal
-- Runtime template compilation
+The resulting component function acts as both the component's setup phase and its rendering pipeline.
