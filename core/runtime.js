@@ -16,7 +16,7 @@
 let arg_global = null;
 
 const CORE = {
-    version: "0.4.0",
+    version: "0.5.0",
     show_anchor_blocks : true, // flag to use comment node instead of text node as anchor, good for debugging
     PRP_STATE: Symbol(),
     IS_MOUNTED: Symbol(),
