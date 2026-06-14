@@ -101,7 +101,7 @@
 
         const add = () => {
             console.time('add');
-            this.data().push(...buildData(1000));
+            data().push(...buildData(1000));
             requestAnimationFrame(() => {
                 console.timeEnd('add');
             });
@@ -118,7 +118,7 @@
 
         const partialUpdate = () => {
             console.time('partial update');
-            for (let i = 0; i < this.data().length; i += 10) {
+            for (let i = 0; i < data().length; i += 10) {
                 const row = data()[i];
                 row.label = row.label + ' !!!';
             }
