@@ -767,8 +767,6 @@ export function mount(app, target) {
 
 // REACTIVITY
 
-let is_debugger_on = false;
-
 /** @type {Function[]} */
 let effect_stack = [];
 /** @type {Function | null} */
@@ -845,9 +843,10 @@ export function effect(fn, options = { track_inner_effect : true, is_priority : 
         if (typeof dispose_fn !== "function") return
         try {
             dispose_fn();
-            dispose_fn = null;
         } catch (error) {
             console.trace("effect cleanup error\n", fn, error);
+        } finally {
+            dispose_fn = null;
         }
     }
 
@@ -863,8 +862,7 @@ export function effect(fn, options = { track_inner_effect : true, is_priority : 
         try {
             dispose_fn = fn();
         } catch (error) {
-            // ignored
-            if (is_debugger_on) console.error(error);
+            // error ares ignored because some are just effect residue
         } finally {
             effect_stack.pop();
             current_effect = effect_stack[effect_stack.length - 1] || null;
