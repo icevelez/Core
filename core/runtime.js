@@ -793,9 +793,7 @@ function track(dep) {
  * @param {Set<Function>} dep
  */
 function trigger(dep) {
-    for (const effect_fn of dep) {
-        (effect_fn.is_priority ? prio_effect_queue : effect_queue).add(effect_fn);
-    }
+    for (const effect_fn of dep) (effect_fn.is_priority ? prio_effect_queue : effect_queue).add(effect_fn);
 
     if (is_flushing) return;
     is_flushing = true;
