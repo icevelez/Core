@@ -536,20 +536,17 @@ export async function sfc(url, template_processor) {
     });
     if (error) throw error;
 
-    if (!script) return new Function(create_render_code_string(template, { include_context : true, include_lifecycle : true }));
+    if (!script) return new Function(create_render_code_string(template, { include_context : true }));
 
     const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
-    let script_content = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
+    let script_code = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
-    template = process_components(template, components_id);
-    template = template_processor(template);
+    const render_code_string = create_render_code_string(template_processor(process_components(template, components_id)), { include_context : true, include_lifecycle : true });
+    const user_code = extract_default_function(script_code);
+    script_code = script_code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
-    const render_code_string = create_render_code_string(template, { include_context : true, include_lifecycle : true });
-    const user_code = extract_default_function(script_content);
-    script_content = script_content.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
-
-    const script_blob = new Blob([script_content], { type: 'text/javascript' });
+    const script_blob = new Blob([script_code], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
 
     const { default: render_function, ...component_promises } = await import(script_url);
