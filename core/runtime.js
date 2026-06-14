@@ -774,10 +774,10 @@ let effect_stack = [];
 /** @type {Function | null} */
 let current_effect = null;
 
-/**
- * @type {Set<Function>}
- */
+/** @type {Set<Function>} */
 const effect_queue = new Set();
+/** @type {Set<Function>} */
+const prio_effect_queue = new Set();
 let is_flushing = false;
 
 /**
@@ -793,17 +793,21 @@ function track(dep) {
  * @param {Set<Function>} dep
  */
 function trigger(dep) {
-    for (const effect_fn of dep) effect_queue.add(effect_fn);
+    for (const effect_fn of dep) {
+        (effect_fn.is_priority ? prio_effect_queue : effect_queue).add(effect_fn);
+    }
 
     if (is_flushing) return;
     is_flushing = true;
 
     queueMicrotask(() => {
         try {
+            for (const fn of prio_effect_queue) fn();
             for (const fn of effect_queue) fn();
         } catch (error) {
             console.error("effect microtask execution error\n", effect_queue, error)
         } finally {
+            prio_effect_queue.clear();
             effect_queue.clear();
             is_flushing = false;
         }
@@ -831,9 +835,9 @@ function dispose_deps(effect_fn) {
 /**
  * Returns a dispose function for manually disposal of effect
  * @param {Function} fn
- * @param {{ track_inner_effect : boolean }} options
+ * @param {{ track_inner_effect : boolean, is_priority : boolean }} options
  */
-export function effect(fn, options = { track_inner_effect : true }) {
+export function effect(fn, options = { track_inner_effect : true, is_priority : false }) {
     if (typeof fn !== "function") throw "Effect callback is not a function";
 
     let dispose_fn = null;
@@ -870,6 +874,7 @@ export function effect(fn, options = { track_inner_effect : true }) {
         }
     };
 
+    wrapped.is_priority = options.is_priority;
     wrapped.track_inner_effect = options.track_inner_effect;
 
     /** @type {Set<Function>[]} */
@@ -952,6 +957,12 @@ export function signal(initial_value) {
     }
 
     return [read, set];
+}
+
+export function memo(fn) {
+    const [value, setValue] = signal();
+    effect(() => setValue(fn()), { is_priority : true });
+    return value;
 }
 
 const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);

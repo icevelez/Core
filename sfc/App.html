@@ -1,6 +1,6 @@
 <script>
     import { component } from "../core/parser/handlebar.js";
-    import { signal, bind } from "../core/runtime.js";
+    import { signal, memo, effect, bind } from "../core/runtime.js";
     import { Router } from "../lib/router.js";
 
     export const PropSlotExample = component("sfc/PropSlotExample.html");
@@ -11,9 +11,10 @@
 
         const [name, setName] = signal("John");
         const [count, setCount] = signal(0);
+        const double = memo(() => count() * 2);
 
         const myaction = (node, arg) => {
-            console.log("HEEEELLO", node, arg);
+            console.log("MyAction:", node, arg);
         }
     }
 </script>
@@ -29,11 +30,11 @@
 {{:else if Router.match("/example").is_match}}
     <Example/>
 {{:else}}
-    <button use:myaction="'Hello'" on:click="() => setCount(count()+1)">Count: {{ count() }}</button>
+    <button use:myaction="'Hello'" on:click="() => setCount(count()+1)">Count: {{ count() }} {{ double() }}</button>
     <input use:bind="['value', name, setName]">
     <h1>Hello {{ name() }}</h1>
     <hr>
     <PropSlotExample :name="`${name()} ${count()}`">
-        <h1>Hi from Parent Scope {{ count() }}</h1>
+        <h1>Hi from Parent Scope {{ count() }} {{ double() }}</h1>
     </PropSlotExample>
 {{/if}}
