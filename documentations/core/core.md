@@ -195,6 +195,22 @@ Incrementing:
 setCount(count() + 1);
 ```
 
+--- 
+
+# Dervied State
+
+Dervied state can be created by wrapping your code in a function 
+
+```js
+const double = () => count() * 2;
+```
+
+Or memoize for expensive computation 
+
+```js
+const double = memo(() => count() * 2);
+```
+
 ---
 
 # Text Interpolation
