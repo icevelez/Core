@@ -1,4 +1,4 @@
-# Core Internal Rendering Pipeline
+# Rendering Pipeline
 
 This document explains how Core transforms a Single-File Component (SFC) into a running UI component.
 
