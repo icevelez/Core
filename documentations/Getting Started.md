@@ -126,8 +126,8 @@ Throughout the rest of the documentation, we will be primarily using ES modules 
         <script type="importmap">
           {
             "imports": {
-                "core/handlebar": "https://github.com/icevelez/core.js/blob/master/core/parser/handlebar.js",
-                "core": "https://github.com/icevelez/core.js/blob/master/core/runtime.js",
+                "core/handlebar": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/core/parser/handlebar.js",
+                "core": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/core/runtime.js"
             }
           }
         </script>
@@ -162,3 +162,18 @@ Throughout the rest of the documentation, we will be primarily using ES modules 
 
 > [!NOTE]
 > In our example we are using [**importmap**](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/script/type/importmap) to give Core's URL an alias to shorten our import statements
+
+> [!IMPORTANT]
+> This example must be run through a local or remote web server.
+>
+> Modern browsers restrict ES modules and import maps when opening files directly via `file://`.
+>
+> You can use any web server of your choice, such as:
+>
+> - NGINX / Apache / IIS
+> - Node.js (`npx serve`, `npx live-server`)
+> - Bun (`bunx serve`, `bunx live-server`)
+> - Python (`python -m http.server`)
+> - Laravel / Django / Flask / Express / Go / Rust servers
+>
+> Once served over `http://` or `https://`, the example will work normally in the browser.
