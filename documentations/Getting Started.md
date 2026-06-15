@@ -1,6 +1,6 @@
 # Introduction
 
-## What is Core? {#what-is-core}
+## What is Core?
 
 Core is a browser-first JavaScript frontend framework for building modern web applications without requiring a mandatory build pipeline. It combines fine-grained reactivity, runtime compiler optimizations, and a component-based architecture to help you build user interfaces while maintaining excellent performance and a streamlined development experience.
 
@@ -52,7 +52,7 @@ The example above introduces the core ideas behind Core. Don't worry if every de
 
 --- 
 
-## The Browser-First Framework {#browser-first-framework}
+## The Browser-First Framework
 
 Core is a browser-first framework designed around a simple idea:
 
@@ -77,7 +77,7 @@ If you're an experienced developer, you'll find that Core fits naturally alongsi
 
 --- 
 
-## Single-File Components {#single-file-components}
+## Single-File Components
 
 Single-File Components (SFCs) are the primary way of authoring user interfaces in Core.
 
@@ -111,7 +111,7 @@ Unlike many frameworks, Core Single-File Components does not require a build ste
 
 # Quick Start
 
-## Creating a Core Application {#creating-a-core-application}
+## Creating a Core Application
 
 In this section we will introduce how to scaffold a Core Single Page Application on your local machine.
 
