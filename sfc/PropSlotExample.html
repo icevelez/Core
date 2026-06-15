@@ -1,5 +1,5 @@
 <script>
-    import { get_context } from "../core/runtime.js";
+    import { get_context, on_mount } from "../core/runtime.js";
 
     console.log("Hello from PropSlotExample");
 
@@ -7,15 +7,15 @@
 
         console.log(get_context("key"), "from propslotexample.html")
 
-        function onMount() {
-            console.log("PropsSlotExample on mount");
+        on_mount(() => {
+            console.log("PropsSlotExample on mount", document.getElementById("test"));
             return () => {
                 console.log("PropsSlotExample on mount disposal");
             }
-        }
+        })
     }
 </script>
 
-<h1>Hello from Example.html === {{ props.name }}</h1>
+<h1 id="test">Hello from Example.html === {{ props.name }}</h1>
 <CoreSlot/>
 <h2>End of Example.html</h2>

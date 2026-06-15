@@ -1,10 +1,15 @@
 import { add_block_to_cache, create_render_code_string, sfc, make_id } from "../runtime.js";
 
+/** @type {Map<string, (Promise<Function> | Function)>} */
+const component_cache = new Map();
+
 /**
  * @param {string} url
  */
 export async function component(url) {
-    return sfc(url, function (source) {
+    if (component_cache.has(url)) return component_cache.get(url);
+
+    const promise = sfc(url, function (source) {
         const blockPattern = /{{#(await|if|each)(.*?)}}|{{\/(await|if|each)}}/gs, stack = [], blocks = [];
         let match;
 
@@ -37,7 +42,13 @@ export async function component(url) {
         }
 
         return html;
+    }).then((render_function) => {
+        component_cache.set(url, render_function);
+        return render_function;
     })
+
+    component_cache.set(url, promise);
+    return promise;
 }
 
 const RE = {

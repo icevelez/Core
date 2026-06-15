@@ -1,16 +1,14 @@
 /** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Instruction */
 
-/** @typedef {(anchor:Node, $:any, slot_fn:Function) => (() => void)} CoreBlock the compiled render function which returns a function to dispose any event and reactive effect */
-/** @typedef {(anchor:Node, props:Record<string, any>, slot_fn:Function) => (() => void)} CoreComponent the function that wraps both the data and render function */
+/** @typedef {(props:Record<string, any>) => (() => void)} CoreComponent the function that wraps both the data and render function */
 
-/** @typedef {{ fns : Function[], exprs : string[] }} IfBlock */
-/** @typedef {{ fn : Function, empty_fn : Function, expr : string, key : string, keys?: string[], index_key?:string }} EachBlock */
-/** @typedef {{ pending_fn:Function, then_fn?: Function, then_key?:string, catch_fn?: Function, catch_key?:string, expr : string }} AwaitBlock */
+/** @typedef {{ fns : string[], exprs : string[] }} IfBlock */
+/** @typedef {{ fn : string, empty_fn : string, expr : string, key : string, keys?: string[], index_key?:string }} EachBlock */
+/** @typedef {{ pending_fn:string, then_fn?: string, then_key?:string, catch_fn?: string, catch_key?:string, expr : string }} AwaitBlock */
 /** @typedef {{ props : Record<string, string>, dynamic_props : { key:string, expr : string }[] }} PropsBlock */
-/** @typedef {CoreBlock} SlotBlock */
 /** @typedef {Record<string, CoreComponent>} ComponentBlock */
 
-/** @typedef {IfBlock | EachBlock | AwaitBlock | PropsBlock | SlotBlock | CoreBlock} BlockCache */
+/** @typedef {IfBlock | EachBlock | AwaitBlock | PropsBlock | CoreComponent} BlockCache */
 
 /** @type {any | null} */
 let arg_global = null;
@@ -19,18 +17,19 @@ const CORE = {
     version: "0.5.0",
     show_anchor_blocks : true, // flag to use comment node instead of text node as anchor, good for debugging
     PRP_STATE: Symbol(),
-    IS_MOUNTED: Symbol(),
-    DEFER_MOUNT_FNS: Symbol(),
+    MOUNT_FNS: Symbol(),
+    DESTROY_FNS: Symbol(),
+    run_mount_fns,
+    run_destroy_fns,
     effect,
-    is_signal,
+    set_new_context,
+    create_new_context,
     /** @type {DocumentFragment[]} */
     fragment_cache: [],
     /** @type {Map<string, BlockCache[]>} */
     block_cache: new Map(),
     /** @type {Map<string, WeakMap<Node, Set<Function>>>} */
     delegated_events: new Map(),
-    set_new_context,
-    create_new_context,
     /**
      * @param {Node} node
      * @param {string} text
@@ -444,11 +443,8 @@ function discover_node_instruction(node, node_index = [], instruction = { childr
 /** @type {(nums:number[]) => string} */
 const resolve_child_node = (nums = []) => `.childNodes[${nums.shift() || 0}]` + ((nums.length <= 0) ? '' : resolve_child_node(nums));
 
-/**
- * @param {string} key
- * @param {BlockCache} block
- */
-export const add_block_to_cache = (key, block) => CORE.block_cache.set(key, block);
+/** @type {(key:string, block:BlockCache) => void} */
+export const add_block_to_cache = (key, block) => { CORE.block_cache.set(key, block) };
 
 /**
  * @param {Node} root
@@ -659,23 +655,13 @@ ${
 
         $ANCHOR.append($TEMPLATE);
 ${
-        options?.include_lifecycle ? `
-        let $ON_MOUNT_DISPOSE_FN;
-        if (typeof onMount === "function") {
-            if ($CONTEXT[$CORE.IS_MOUNTED]) {
-                $ON_MOUNT_DISPOSE_FN = onMount();
-            } else {
-                $CONTEXT[$CORE.DEFER_MOUNT_FNS].push([onMount, (fn) => $ON_MOUNT_DISPOSE_FN = fn]);
-            }
-        }
-        ` : ''
+        options?.include_lifecycle ? `queueMicrotask(() => $CORE.run_mount_fns())` : ''
 }${
         options?.include_context ? `\n\t\t// RESET CONTEXT\n\t\t$CORE.set_new_context($OLD_CONTEXT);\n` : ''
 }
         // CLEAN UP
         return () => {${
-            options?.include_lifecycle ? `\n\t\t\tif (typeof $ON_MOUNT_DISPOSE_FN === "function") $ON_MOUNT_DISPOSE_FN();
-            if (typeof onDestroy === "function") onDestroy();\n` : ''
+            options?.include_lifecycle ? `\n\t\t\t$CORE.run_destroy_fns();\n` : ''
         }
             for (const fn of $DISPOSE_FNS) fn();
             $DISPOSE_FNS.length = 0;
@@ -746,21 +732,36 @@ export function get_context(key) {
  */
 export function mount(app, target) {
     const context = create_new_context();
-
-    context[CORE.IS_MOUNTED] = false;
-    context[CORE.DEFER_MOUNT_FNS] = [];
+    context[CORE.MOUNT_FNS] = [];
+    context[CORE.DESTROY_FNS] = [];
 
     set_new_context(context);
-    CORE.set_param_args(target);
-    const dispose = app();
+    CORE.set_param_args(typeof target === "string" ? document.querySelector(target) : target);
 
-    for (const [fn, cb] of context[CORE.DEFER_MOUNT_FNS]) cb(fn());
-
-    context[CORE.DEFER_MOUNT_FNS].length = 0;
-    context[CORE.IS_MOUNTED] = true;
-
-    return dispose;
+    return app();
 }
+
+function run_mount_fns() {
+    for (const fn of current_context[CORE.MOUNT_FNS]) {
+        const destroy_fn = fn();
+        if (typeof destroy_fn === "function") current_context[CORE.DESTROY_FNS].push(destroy_fn);
+    }
+    current_context[CORE.MOUNT_FNS].length = 0;
+}
+
+function run_destroy_fns() {
+    for (const fn of current_context[CORE.DESTROY_FNS]) fn();
+    current_context[CORE.DESTROY_FNS].length = 0;
+}
+
+export function on_mount(fn) {
+    current_context[CORE.MOUNT_FNS].push(fn);
+}
+
+export function on_destroy(fn) {
+    current_context[CORE.DESTROY_FNS].push(fn);
+}
+
 
 // REACTIVITY
 
@@ -797,11 +798,13 @@ function trigger(dep) {
         try {
             for (const fn of prio_effect_queue) fn();
             for (const fn of effect_queue) fn();
+            for (const fn of ticks) fn();
         } catch (error) {
             console.error("effect microtask execution error\n", effect_queue, error)
         } finally {
             prio_effect_queue.clear();
             effect_queue.clear();
+            ticks.length = 0;
             is_flushing = false;
         }
     });
@@ -823,6 +826,13 @@ function dispose_deps(effect_fn) {
 
     for (const fn of effect_fn.children) fn();
     effect_fn.children.length = 0;
+}
+
+/** @type {Function[]} */
+const ticks = [];
+
+export function next_tick() {
+    return new Promise((resolve) => ticks.push(resolve));
 }
 
 /**
@@ -885,12 +895,6 @@ export function effect(fn, options = { track_inner_effect : true, is_priority : 
     wrapped();
 
     return wrapped.dispose;
-}
-
-const SIGNAL = Symbol();
-
-export function is_signal(signal) {
-    return Boolean(typeof signal === "function" && signal[SIGNAL]);
 }
 
 /**
@@ -1076,4 +1080,8 @@ export function bind(node, [value, get, set]) {
     const event_name_dictionary = { "checked": node.type === "date" ? "change" : "click", "value": node.tagName === "select" ? "change" : "input" };
     CORE.delegate(event_name_dictionary[value], node, (e) => set(e.target[value]))
     return CORE.effect(() => node[value] = get());
+}
+
+export function html(node, arg) {
+    return effect(() => { node.innerHTML = arg; })
 }

@@ -1,4 +1,4 @@
-import { create_controller_store } from "../lib/controller.js";
+import { create_store } from "../lib/store.js";
 
 /** @type {{ todo:string, done:boolean }[]} */
 const todo_arr = [
@@ -12,7 +12,7 @@ const todo_arr = [
     }
 ];
 
-export const todos = create_controller_store(todo_arr, {
+export const todos = create_store(todo_arr, {
     add_todo: (value, todo) => {
         value.push({ todo, done: false });
         return value;

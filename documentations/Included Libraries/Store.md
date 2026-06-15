@@ -1,10 +1,10 @@
-# Controller Library (`controller.js`)
+# Store Library (`store.js`)
 
 ## Introduction
 
-The controller library provides a lightweight way to manage state using actions.
+The store library provides a lightweight way to manage state using actions.
 
-It behaves similarly to simplified Flux/Redux-style patterns while remaining extremely small and framework-agnostic.
+It behaves similarly to simplified Flux/Redux-style patterns while remaining extremely small
 
 Features:
 
@@ -19,18 +19,18 @@ Features:
 ## Installation
 
 ```js
-import { create_controller } from './controller.js';
+import { create_store } from './store.js';
 ```
 
 ---
 
 ## API
 
-### `create_controller(initialState, actions)`
+### `create_store(initialState, actions)`
 
-Creates a controller object containing:
+Creates a store object containing:
 
-- a `state` getter
+- a `value` getter
 - methods defined in `actions`
 
 ### Parameters
@@ -40,7 +40,7 @@ Creates a controller object containing:
 The initial value of the controller state.
 
 ```js
-create_controller([], actions)
+create_store([], actions)
 ```
 
 #### `actions`
@@ -62,7 +62,7 @@ The action must return:
 ## Basic Example
 
 ```js
-const counter = create_controller(0, {
+const counter = create_store(0, {
     increment(value) {
         return value + 1;
     },
@@ -77,10 +77,10 @@ const counter = create_controller(0, {
 });
 
 counter.increment();
-console.log(counter.state); // 1
+console.log(counter.value); // 1
 
 counter.add(5);
-console.log(counter.state); // 6
+console.log(counter.value); // 6
 ```
 
 ---
@@ -90,7 +90,7 @@ console.log(counter.state); // 6
 Actions may also be asynchronous.
 
 ```js
-const users = create_controller([], {
+const users = create_store([], {
     async fetchUsers(value) {
         const response = await fetch('/api/users');
         return response.json();
@@ -98,7 +98,7 @@ const users = create_controller([], {
 });
 
 await users.fetchUsers();
-console.log(users.state);
+console.log(users.value);
 ```
 
 ---
@@ -106,7 +106,7 @@ console.log(users.state);
 ## Todo Example
 
 ```js
-const todo_controller = create_controller([], {
+const todos = create_store([], {
     add_todo(value, todo) {
         value.push({
             todo,
@@ -128,20 +128,20 @@ const todo_controller = create_controller([], {
 });
 
 
-todo_controller.add_todo('Learn controllers');
-todo_controller.add_todo('Build app');
+todos.add_todo('Learn flux pattern');
+todos.add_todo('Build app');
 
-console.log(todo_controller.state);
+console.log(todos.value); // [{ todo : "Learn flux pattern", done : false }, { todo : "Build app", done : false }]
 ```
 
 ---
 
 ## Internal Behavior
 
-The controller stores the state internally using a private `Symbol`.
+The store holds the value internally using a private `Symbol`.
 
 ```js
-const CONTROLLER_VALUE = Symbol();
+const STORE_VALUE = Symbol();
 ```
 
 This prevents accidental collisions with user-defined keys.
@@ -170,7 +170,7 @@ add(value, amount)
 becomes:
 
 ```js
-controller.add(amount)
+store.add(amount)
 ```
 
 ---
