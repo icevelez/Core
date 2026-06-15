@@ -162,6 +162,8 @@ Throughout the rest of the documentation, we will be primarily using ES modules 
 
 > [!NOTE]
 > In our example we are using [**importmap**](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/script/type/importmap) to give Core's URL an alias to shorten our import statements
+>
+> The import map in this example is not restricted to the CDN version of Core. It can just as easily be configured to reference a local copy of Core or a self-hosted server build. This makes Core flexible across different environments, as switching between CDN and local development setups only requires updating the import map, not the application code itself.
 
 > [!IMPORTANT]
 > This example must be run through a local or remote web server.
@@ -177,3 +179,9 @@ Throughout the rest of the documentation, we will be primarily using ES modules 
 > - Laravel / Django / Flask / Express / Go / Rust servers
 >
 > Once served over `http://` or `https://`, the example will work normally in the browser.
+
+--- 
+
+## What's Next?
+
+Check out the `/Essentials` folder for a step by step guide on each concept in Core
