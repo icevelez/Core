@@ -16,7 +16,7 @@ Core components are authored as HTML files that contain JavaScript inside a `<sc
 
 Unlike a traditional JavaScript module loaded directly from a URL, Core must first load, process, and compile the component before it can execute the component's script.
 
-As part of this process, Core generates a modified JavaScript module and loads it using a browser `Object URL`.
+As part of this process, Core generates a modified JavaScript module and loads it using a browser `URL.createObjectURL()`.
 
 Because of this behavior, import paths inside components require special handling.
 
@@ -48,7 +48,7 @@ Instead, Core:
 2. Extracts the `<script>` content.
 3. Injects generated render code.
 4. Creates a new JavaScript module.
-5. Generates an `Object URL`.
+5. Generates a `URL.createObjectURL()`.
 6. Imports the generated module.
 
 Conceptually:
@@ -73,7 +73,7 @@ If left unchanged:
 import { format } from "./util.js";
 ```
 
-Because component scripts are executed from generated Object URLs, the browser cannot resolve relative imports against the original component file. Core therefore converts local imports into absolute URLs during compilation.
+The browser cannot resolve relative imports against the original component file. Core therefore converts local imports into absolute URLs during compilation.
 
 ---
 
