@@ -240,6 +240,7 @@ Throughout the rest of the documentation, we will be primarily using ES modules 
 > - Bun (`bunx serve`, `bunx live-server`)
 > - Python (`python -m http.server`)
 > - Laravel / Django / Flask / Express / Go / Rust servers
+> - VSCode live server extension
 >
 > Once served over `http://` or `https://`, the example will work normally in the browser.
 
