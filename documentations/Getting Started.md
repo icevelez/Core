@@ -246,6 +246,26 @@ Throughout the rest of the documentation, we will be primarily using ES modules 
 
 --- 
 
-## What's Next?
+### What's Next?
 
-Check out the `/Essentials` folder for a step by step guide on each concept in Core
+You've now seen what Core is, how a Core application is structured, and how to get your first application running in the browser.
+
+The next step is to work through the **Essentials** guide, where you'll learn the fundamental building blocks used in every Core application:
+
+* Creating and mounting a Core application
+* Template syntax and interpolation
+* Signals and reactive state
+* Derived values
+* Event handling
+* Form input bindings
+* Effects and reactive side effects
+* Composable behavior
+* Components and component composition
+* Component lifecycle hooks
+* Context and dependency sharing
+
+The Essentials guide is designed to be read in order, with each chapter building on concepts introduced earlier.
+
+Once you've completed Essentials, you'll have everything needed to build complete applications with Core and will be ready to explore more advanced topics throughout the rest of the documentation.
+
+> **Next:** Continue to the **Essentials** section and start with **Creating a Core Application**.
