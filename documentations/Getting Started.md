@@ -268,4 +268,4 @@ The Essentials guide is designed to be read in order, with each chapter building
 
 Once you've completed Essentials, you'll have everything needed to build complete applications with Core and will be ready to explore more advanced topics throughout the rest of the documentation.
 
-> **Next:** Continue to the **Essentials** section and start with **Creating a Core Application**.
+> **Next:** Continue to the **Essentials** folder and start with **01. Creating An Application**.
