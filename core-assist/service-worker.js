@@ -34,6 +34,17 @@ async function handle_component_request(request) {
         return fetch(request);
     }
 
+    const response = new Response(metadata.code, {
+        headers: {
+            "Content-Type": "application/javascript",
+            "X-Core-Compiled": "true",
+        },
+    });
+
+    if (!metadata.etag) {
+        return response;
+    }
+
     const validation = await fetch(request.url, {
         headers: {
             "If-None-Match": metadata.etag,
@@ -41,12 +52,7 @@ async function handle_component_request(request) {
     });
 
     if (validation.status === 304) {
-        return new Response(metadata.code, {
-            headers: {
-                "Content-Type": "application/javascript",
-                "X-Core-Compiled": "true",
-            },
-        });
+        return response;
     }
 
     await db.delete(request.url);

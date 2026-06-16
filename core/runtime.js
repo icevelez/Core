@@ -519,27 +519,25 @@ export function process_components(template, imported_component_id) {
     })
 }
 
-let frag_length = 0;
-
 /**
  * @param {string} url
  * @param {DocumentFragment} template_processor
  */
 export async function sfc(url, template_processor) {
-    let { script, template, error } = await fetch(url).then(async response => {
-        const text = await response.text();
-        if (!response.ok) return { error: text };
+    const core_assist = window.__core_assist__;
+    const response = await fetch(url);
 
-        const base = document.createElement("template");
-        base.innerHTML = text;
+    const text = await response.text();
+    if (!response.ok) throw text;
 
-        const scriptEl = base.content.querySelector("script");
-        const script = scriptEl?.innerHTML || "";
-        const template = text.replace(scriptEl?.outerHTML, "");
+    const base = document.createElement("template");
+    base.innerHTML = text;
 
-        return { script, template };
-    });
-    if (error) throw error;
+    const scriptEl = base.content.querySelector("script");
+    const script = scriptEl?.innerHTML || "";
+    const template = text.replace(scriptEl?.outerHTML, "");
+    const full_url = response.url;
+    const etag = response.headers.get("etag") || "";
 
     if (!script) return new Function(create_render_code_string(template, { include_context : true }));
 
@@ -549,27 +547,9 @@ export async function sfc(url, template_processor) {
     const components_id = `component-${make_id(6)}`;
     const render_code_string = create_render_code_string(template_processor(process_components(template, components_id)), { include_context : true, include_lifecycle : true });
     const user_code = extract_default_function(script_code);
-    const current_frag = [...CORE.fragment_cache].splice(frag_length, CORE.fragment_cache.length);
-
-    const injectable_frag_func = `
-    export function $CORE_INJECT_TEMPLATE() {
-        const $CORE = window.__core__;
-        const html = window.__core_assist__.html;
-        ${
-            current_frag.map((frag, i) => {
-                const template = document.createElement("template");
-                template.content.append(frag);
-                const result = `$CORE.fragment_cache[${frag_length + i}] = html(${JSON.stringify(template.innerHTML)})`;
-                frag.append(template.content)
-                return result;
-            }).join("\n\t\t")
-        }
-    }`;
-
     script_code = script_code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
-    script_code = `${script_code}\n\n${injectable_frag_func}`;
 
-    frag_length = CORE.fragment_cache.length;
+    if (core_assist) script_code = core_assist.cache_render_function(full_url, etag, script_code, CORE.fragment_cache);
 
     const script_blob = new Blob([script_code], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
