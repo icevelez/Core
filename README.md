@@ -4,7 +4,7 @@ Version: 0.5.0
 
 License: MIT
 
-## Documentation
+## How to Use?
 
 Pleaes refer to the `Getting Started.md` file in the documentation folder
 
