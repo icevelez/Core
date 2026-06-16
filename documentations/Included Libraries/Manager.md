@@ -154,7 +154,7 @@ The returned object contains:
 
 ```ts
 {
-    state: T,
+    value: T,
     ...actions
 }
 ```

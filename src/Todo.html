@@ -5,7 +5,7 @@
     console.log("Hello from Todo");
 
     export default function(props) {
-        const todo_completed = () => todos.state.filter((todo) => todo.done).length;
+        const todo_completed = () => todos.value.filter((todo) => todo.done).length;
         const [new_todo, set_new_todo] = signal("");
 
         on_mount(() => {
@@ -21,8 +21,8 @@
     </button>
 </div>
 <div>
-    <h2>Completed: {{ todo_completed() }} / {{ todos.state.length }}</h2>
-    {{#each todos.state as todo, i}}
+    <h2>Completed: {{ todo_completed() }} / {{ todos.value.length }}</h2>
+    {{#each todos.value as todo, i}}
         <div>
             <label style="display: flex; gap: 0.5rem; user-select: none;">
                 <input type="checkbox" :checked="todo().done" on:click="() => todos.toggle_todo(i)"/>
