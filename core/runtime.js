@@ -655,7 +655,7 @@ ${
 
         $ANCHOR.append($TEMPLATE);
 ${
-        options?.include_lifecycle ? `queueMicrotask(() => $CORE.run_mount_fns())` : ''
+        options?.include_lifecycle ? `\n\t\tqueueMicrotask(() => $CORE.run_mount_fns())\n` : ''
 }${
         options?.include_context ? `\n\t\t// RESET CONTEXT\n\t\t$CORE.set_new_context($OLD_CONTEXT);\n` : ''
 }
