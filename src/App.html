@@ -1,11 +1,11 @@
 <script>
-    import { component } from "../core/parser/handlebar.js";
-    import { signal, memo, effect, bind } from "../core/runtime.js";
-    import { Router } from "../lib/router.js";
+    import { component } from "core/handlebar";
+    import { signal, memo, effect, bind } from "core";
+    import { Router } from "router";
 
-    export const PropSlotExample = component("sfc/PropSlotExample.html");
-    export const Todo = component("sfc/Todo.html");
-    export const Example = component("sfc/Example.html");
+    export const PropSlotExample = component("src/PropSlotExample.html");
+    export const Todo = component("src/Todo.html");
+    export const Example = component("src/Example.html");
 
     export default function() {
 
@@ -20,7 +20,7 @@
 </script>
 
 {{#if Router.match("/benchmark").is_match}}
-    {{#await component("sfc/Benchmark.html")}}
+    {{#await component("src/Benchmark.html")}}
         <h1>Loading Benchmark</h1>
     {{:then Benchmark}}
         <CoreComponent default="Benchmark"/>

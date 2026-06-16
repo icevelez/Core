@@ -1,8 +1,8 @@
-# Store Library (`store.js`)
+# Manager Library (`manager.js`)
 
 ## Introduction
 
-The store library provides a lightweight way to manage state using actions.
+The manager library provides a lightweight way to manage state using actions.
 
 It behaves similarly to simplified Flux/Redux-style patterns while remaining extremely small
 
@@ -19,14 +19,14 @@ Features:
 ## Installation
 
 ```js
-import { create_store } from './store.js';
+import { create_managed_value } from 'manager';
 ```
 
 ---
 
 ## API
 
-### `create_store(initialState, actions)`
+### `create_managed_value(initialState, actions)`
 
 Creates a store object containing:
 
@@ -40,7 +40,7 @@ Creates a store object containing:
 The initial value of the controller state.
 
 ```js
-create_store([], actions)
+create_managed_value([], actions)
 ```
 
 #### `actions`
@@ -62,7 +62,7 @@ The action must return:
 ## Basic Example
 
 ```js
-const counter = create_store(0, {
+const counter = create_managed_value(0, {
     increment(value) {
         return value + 1;
     },
@@ -90,7 +90,7 @@ console.log(counter.value); // 6
 Actions may also be asynchronous.
 
 ```js
-const users = create_store([], {
+const users = create_managed_value([], {
     async fetchUsers(value) {
         const response = await fetch('/api/users');
         return response.json();
@@ -106,7 +106,7 @@ console.log(users.value);
 ## Todo Example
 
 ```js
-const todos = create_store([], {
+const todos = create_managed_value([], {
     add_todo(value, todo) {
         value.push({
             todo,
@@ -138,7 +138,7 @@ console.log(todos.value); // [{ todo : "Learn flux pattern", done : false }, { t
 
 ## Internal Behavior
 
-The store holds the value internally using a private `Symbol`.
+The manager instance holds the value internally using a private `Symbol`.
 
 ```js
 const STORE_VALUE = Symbol();
@@ -170,7 +170,7 @@ add(value, amount)
 becomes:
 
 ```js
-store.add(amount)
+add(amount)
 ```
 
 ---

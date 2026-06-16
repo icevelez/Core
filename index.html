@@ -5,11 +5,21 @@
     </head>
     <body>
         <div id="app"></div>
+        <script type="importmap">
+          {
+            "imports": {
+                "core/handlebar": "./core/parser/handlebar.js",
+                "core": "./core/runtime.js",
+                "router": "./lib/router.js",
+                "manager": "./lib/manager.js"
+            }
+          }
+        </script>
         <script type="module" defer>
-            import { component } from "./core/parser/handlebar.js";
-            import { mount } from "./core/runtime.js";
+            import { component } from "core/handlebar";
+            import { mount } from "core";
 
-            const App = await component("sfc/App.html");
+            const App = await component("src/App.html");
             mount(App, "#app");
         </script>
     </body>

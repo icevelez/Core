@@ -1,4 +1,4 @@
-# Core.js v0.4.0 — Changelog
+# Core v0.4.0
 
 ## Runtime & Compiler Architecture Rewrite
 

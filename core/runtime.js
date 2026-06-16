@@ -269,7 +269,7 @@ const CORE = {
         }
 
         const fragment = document.createDocumentFragment();
-        // const context = create_new_context(); // GET CURRENT CONTEXT TO RE-SET WHEN FULLFILLING A PROMISE / CATCHING AN ERROR
+        const context = create_new_context();
 
         const effect_dispose = CORE.effect(() => {
             const promise = new Promise(async (resolve) => { try { resolve([await await_fn(), null]) } catch (error) { resolve([null, error]); } });
