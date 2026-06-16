@@ -52,6 +52,33 @@ Context allows values to be shared throughout a component hierarchy without pass
 
 ---
 
+### Updated Lifecycle Hooks
+
+Move lifecycle hooks away from being component-bound fields and into composable functions that can be reused across any context.
+
+Previously, lifecycle behavior was tied directly to component instances:
+
+```js
+class Component {
+    on_mount = () => {};
+}
+```
+
+This approach limits reuse and couples lifecycle logic to a specific structure.
+
+### New Approach: Composable Lifecycle APIs
+
+Lifecycle hooks become standalone, composable functions:
+
+```js
+on_mount(fn);
+on_destroy(fn);
+```
+
+This allows lifecycle behavior to be registered independently of a component class or instance, enabling reuse across components, effects, and custom abstractions.
+
+---
+
 ### Component Cache
 
 Components loaded through:
