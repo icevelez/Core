@@ -19,7 +19,7 @@ Features:
 ## Installation
 
 ```js
-import { create_managed_value } from './lib/manager.js';
+import { create_managed_value } from 'https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/manager.js';
 ```
 
 or with importmaps
@@ -28,7 +28,7 @@ or with importmaps
 <script type="importmap">
     {
         "imports": {
-            "manager": "./lib/manager.js"
+            "manager": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/manager.js"
         }
     }
 </script>
@@ -36,6 +36,9 @@ or with importmaps
 ```js
 import { create_managed_value } from 'manager';
 ```
+
+> [!NOTE]
+> The import map is not restricted to the CDN version. you can easily configure it to reference a local copy or a self-hosted build
 
 ---
 

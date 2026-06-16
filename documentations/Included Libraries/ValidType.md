@@ -39,7 +39,7 @@ import {
     object,
     union,
     assertedObject
-} from './validtype.js';
+} from 'https://github.com/icevelez/Core/blob/master/lib/validtype.js';
 ```
 
 or with importmaps
@@ -48,7 +48,7 @@ or with importmaps
 <script type="importmap">
     {
         "imports": {
-            "validtype": "./lib/validtype.js"
+            "validtype": "https://github.com/icevelez/Core/blob/master/lib/validtype.js"
         }
     }
 </script>
@@ -67,6 +67,9 @@ import {
     assertedObject
 } from 'validtype';
 ```
+
+> [!NOTE]
+> The import map is not restricted to the CDN version. you can easily configure it to reference a local copy or a self-hosted build
 
 ---
 

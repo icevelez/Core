@@ -27,7 +27,7 @@ import {
     base64ImageToBlob,
     print,
     fetchOnce
-} from './lib/util.js';
+} from 'https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/util.js';
 ```
 
 or with importmaps
@@ -36,7 +36,7 @@ or with importmaps
 <script type="importmap">
     {
         "imports": {
-            "util": "./lib/util.js"
+            "util": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/util.js"
         }
     }
 </script>
@@ -51,6 +51,10 @@ import {
     fetchOnce
 } from 'util';
 ```
+
+> [!NOTE]
+> The import map is not restricted to the CDN version. you can easily configure it to reference a local copy or a self-hosted build
+
 ---
 
 # `delay(ms)`

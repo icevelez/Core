@@ -24,7 +24,7 @@ The router uses URL hash fragments:
 ## Installation
 
 ```js
-import { Router } from './lib/router.js';
+import { Router } from 'https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/router.js';
 ```
 
 or with importmaps
@@ -33,7 +33,7 @@ or with importmaps
 <script type="importmap">
     {
         "imports": {
-            "router": "./lib/router.js"
+            "router": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/router.js"
         }
     }
 </script>
@@ -41,6 +41,9 @@ or with importmaps
 ```js
 import { Router } from 'router';
 ```
+
+> [!NOTE]
+> The import map is not restricted to the CDN version. you can easily configure it to reference a local copy or a self-hosted build
 
 ---
 
