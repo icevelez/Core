@@ -21,7 +21,7 @@ Folder | Description
 /core | All of Core's source code
 /lib | Optional libraries for Core
 /scribbles | Folder where I write my ideas
-/dcoumentation | Core documentation
+/dcoumentations | Documentations for Core and its Libraries
 /changelog | Core's changelog
 
 > [!TIP] 
