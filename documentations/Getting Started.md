@@ -2,7 +2,11 @@
 
 ## What is Core?
 
-Core is a browser-first JavaScript frontend framework for building modern web applications without requiring a mandatory build pipeline. It combines fine-grained reactivity, runtime compiler optimizations, and a component-based architecture to help you build user interfaces while maintaining excellent performance and a streamlined development experience.
+> Core is a browser-first JavaScript framework for building modern web applications using HTML components, fine-grained reactivity, and runtime compiler optimizations—all without requiring a mandatory build pipeline.
+
+Core embraces the capabilities of the modern web platform while providing the features developers expect from contemporary frontend frameworks.
+
+Whether you're building a small interactive widget or a large Single-Page Application, Core scales using the same concepts and APIs.
 
 Here is a starting example:
 ```html
@@ -39,41 +43,97 @@ Here is a starting example:
 </html>
 ```
 
-That example demonstrates several of core design principles
+Even though the example is minimal, it demonstrates two of Core's key features.
 
-- HTML Components: Build applications using self-contained HTML-based components.
+- HTML Components - Components are authored using familiar HTML and JavaScript.
 
-- Fine-Grained Reactivity: Core automatically update only the DOM nodes affected by state changes.
+This keeps components close to the web platform while remaining expressive enough for complex applications.
 
-The example above introduces the core ideas behind Core. Don't worry if every detail isn't immediately clear—the rest of the documentation will build on these concepts step by step. For now, focus on understanding the overall approach and what Core brings to modern web development.
+- Fine-Grained Reactivity - Core automatically tracks reactive state and updates only the UI affected by a state change.
+
+When `count` changes, Core updates the text displaying the value rather than rerendering the entire component.
+
+---
+
+The example above introduces the fundamental ideas behind Core. Don't worry if every detail isn't immediately clear—the rest of the documentation will build on these concepts step by step.
+
+For now, focus on understanding the overall approach and what Core brings to modern web development.
 
 > [!IMPORTANT] 
 > Core builds on the foundations of the web, so this documentation assumes basic familiarity with HTML, CSS, and JavaScript. If you're new to frontend development, we recommend spending some time learning these technologies first before adopting a framework.
 
 --- 
 
-## The Browser-First Framework
+# The Browser-First Framework
 
-Core is a browser-first framework designed around a simple idea:
+Core is built around a simple idea:
 
-> The browser is powerful enough to be the runtime, not merely the destination of a build process.
+> The browser is capable of being the runtime—not merely the destination of a build process.
 
-Modern frontend development often begins with package managers, bundlers, transpilers, compilers, and build pipelines before an application ever reaches the browser. While these tools provide powerful capabilities, they also introduce complexity that may not be necessary for every project.
+Modern frontend development often involves package managers, bundlers, transpilers, compilers, development servers, and build pipelines before an application ever reaches the browser.
 
-Core takes a different approach. It embraces the web platform directly and provides modern framework features without requiring a mandatory build step.
+These tools are valuable and solve real problems, but they are not always necessary.
 
-Depending on your needs, Core can be used in different ways:
+Core takes a different approach.
 
-- Creating interactive dashboards and web applications
-- Developing Single-Page Applications (SPA)
-- Building reusable HTML components
-- Embedding self-contained widgets into existing websites
-- Integrating with traditional server-rendered stacks such as Laravel, Rails, Django, Express, Bun, or PHP
-- Building applications entirely in the browser using native ES Modules
+By leveraging modern browser capabilities such as:
 
-If some of these concepts are unfamiliar, don't worry. The documentation focuses on the fundamentals first, and you can learn Core without needing prior experience with other frameworks.
+* ES Modules
+* Import Maps
+* HTML Templates
+* Native DOM APIs
 
-If you're an experienced developer, you'll find that Core fits naturally alongside existing technologies. It does not require replacing your backend, build tools, or deployment workflow. Instead, it aims to provide a lightweight and modern frontend layer that can be adopted incrementally.
+Core can provide modern framework features while remaining directly executable in the browser.
+
+---
+
+## Use Core For
+
+Core can be used for a wide variety of applications:
+
+* Interactive websites
+* Dashboards and internal tools
+* Single-Page Applications (SPA)
+* Embedded widgets
+* Reusable component libraries
+* Progressive enhancement
+* Server-rendered applications
+
+It integrates naturally with existing stacks such as:
+
+* Laravel
+* Rails
+* Django
+* Express
+* Bun
+* PHP
+
+and can also be used to build fully browser-native applications.
+
+---
+
+## A Different Tradeoff
+
+Core is not trying to replace every frontend workflow.
+
+Instead, it explores a different set of tradeoffs.
+
+Core favors:
+
+* Browser-native development
+* Runtime flexibility
+* Incremental adoption
+* Fine-grained updates
+* Minimal tooling requirements
+
+while acknowledging that other ecosystems may provide:
+
+* Larger component ecosystems
+* TypeScript-first workflows
+* More extensive tooling
+* Additional build-time optimizations
+
+If you're looking for a framework that embraces the web platform directly while still providing modern application architecture, Core may be a good fit for you.
 
 --- 
 
@@ -152,9 +212,12 @@ Throughout the rest of the documentation, we will be primarily using ES modules 
     
     export default function() {
         const [count, setCount] = signal(0);
+        const [name, setName] = signal("New User");
     }
 </script>
 
+<h1>Greetings! {{ name() }}</h1>
+<input type="text" :value="name()" on:input="(e) => setName(e.target.value)"/>
 <button on:click="() => setCount(count()+1)">
     Count is: {{ count() }}
 </button>
