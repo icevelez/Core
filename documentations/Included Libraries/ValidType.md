@@ -42,6 +42,32 @@ import {
 } from './validtype.js';
 ```
 
+or with importmaps
+
+```html
+<script type="importmap">
+    {
+        "imports": {
+            "validtype": "./lib/validtype.js"
+        }
+    }
+</script>
+```
+```js
+import {
+    number,
+    string,
+    boolean,
+    date,
+    func,
+    array,
+    record,
+    object,
+    union,
+    assertedObject
+} from 'validtype';
+```
+
 ---
 
 # Primitive Validators

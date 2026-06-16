@@ -19,6 +19,21 @@ Features:
 ## Installation
 
 ```js
+import { create_managed_value } from './lib/manager.js';
+```
+
+or with importmaps
+
+```html
+<script type="importmap">
+    {
+        "imports": {
+            "manager": "./lib/manager.js"
+        }
+    }
+</script>
+```
+```js
 import { create_managed_value } from 'manager';
 ```
 

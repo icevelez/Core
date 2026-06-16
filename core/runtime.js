@@ -1032,7 +1032,7 @@ const handler = {
     },
     set(target, key, value) {
         const container = object_to_container.get(target);
-        const dep = container.deps[key];
+        const dep = container.deps[key] || (container.deps[key] = new Set());
 
         if (target[key] === value) return true;
 
@@ -1046,8 +1046,8 @@ const handler = {
         const container = object_to_container.get(target);
         delete target[key];
 
-        const dep = container.deps[key];
-        if (dep) trigger(dep);
+        const dep = container.deps[key] || (container.deps[key] = new Set());
+        trigger(dep);
 
         return true;
     }

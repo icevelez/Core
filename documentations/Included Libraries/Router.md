@@ -24,7 +24,22 @@ The router uses URL hash fragments:
 ## Installation
 
 ```js
-import { Router } from './router.js';
+import { Router } from './lib/router.js';
+```
+
+or with importmaps
+
+```html
+<script type="importmap">
+    {
+        "imports": {
+            "router": "./lib/router.js"
+        }
+    }
+</script>
+```
+```js
+import { Router } from 'router';
 ```
 
 ---
@@ -34,7 +49,7 @@ import { Router } from './router.js';
 ## Current Pathname
 
 ```js
-Router.pathname
+Router.path_name
 ```
 
 Example:
@@ -160,7 +175,7 @@ Resulting URL:
 ## Getting Search Parameters
 
 ```js
-Router.searchParams.get('page')
+Router.search_params.get('page')
 ```
 
 Example URL:
@@ -180,7 +195,7 @@ Result:
 ## Setting Search Parameters
 
 ```js
-Router.setSearchParam('page', '5');
+Router.set_search_param('page', '5');
 ```
 
 Result:
@@ -194,7 +209,7 @@ Result:
 ## Removing Search Parameters
 
 ```js
-Router.removeSearchParam('page');
+Router.remove_search_param('page');
 ```
 
 ---
@@ -204,7 +219,7 @@ Router.removeSearchParam('page');
 The router also stores matched path parameters in:
 
 ```js
-Router.pathParams
+Router.path_param
 ```
 
 Example:
@@ -212,7 +227,7 @@ Example:
 ```js
 Router.match('/users/:id');
 
-console.log(Router.pathParams.get('id'));
+console.log(Router.path_param.get('id'));
 ```
 
 ---

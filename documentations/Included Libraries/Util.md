@@ -27,9 +27,30 @@ import {
     base64ImageToBlob,
     print,
     fetchOnce
-} from './util.js';
+} from './lib/util.js';
 ```
 
+or with importmaps
+
+```html
+<script type="importmap">
+    {
+        "imports": {
+            "util": "./lib/util.js"
+        }
+    }
+</script>
+```
+```js
+import {
+    delay,
+    debounce,
+    compressImage,
+    base64ImageToBlob,
+    print,
+    fetchOnce
+} from 'util';
+```
 ---
 
 # `delay(ms)`
