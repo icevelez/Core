@@ -35,6 +35,9 @@ Core Assist provides a mechanism for caching compiled components so that subsequ
 
 ## Installation
 
+> [!IMPORTANT]
+> You must download and place `core-assist.js` and `core-worker.js` at the same folder as your HTML app entry point which is usually `index.html` 
+
 To enable Core Assist, first register the library in your import map:
 
 ```html
