@@ -31,15 +31,6 @@ const CORE = {
     /** @type {Map<string, WeakMap<Node, Set<Function>>>} */
     delegated_events: new Map(),
     /**
-     * Converts string to Document Fragment
-     * @param {string} html_string
-     */
-    html: function (html_string) {
-        const template = document.createElement("template");
-        template.innerHTML = html_string;
-        return template.content;
-    },
-    /**
      * @param {Node} node
      * @param {string} text
      */
@@ -331,6 +322,13 @@ const CORE = {
         const dispose = (fn.default ? fn.default : fn)(props);
         anchor.before(fragment);
         return dispose;
+    },
+    resolve_components: async function (component_promises, id) {
+        const keys = Object.keys(component_promises || {});
+        const arr = await Promise.all(keys.map((k) => component_promises[k]));
+        const components = {};
+        for (let i = 0; i < keys.length; i++) components[keys[i]] = arr[i];
+        if (keys.length > 0) add_block_to_cache(id, components);
     }
 }
 
@@ -373,7 +371,7 @@ function discover_node_instruction(node, node_index = [], instruction = { childr
         const has_handlebars = parts.map(p => p.startsWith("{{")).filter(p => p === true).length > 0;
         if (!has_handlebars) return instruction;
 
-        node.textContent = "";
+        node.textContent = " "; // DO NOT REMOVE THIS WHITESPACE. IT IS FOR A TEXT NODE
         instruction.children.push(node_index);
         instruction.text_funcs.push({ child_index: instruction.children.length - 1, expr: `\`${expression.replace(handlebar_capture_inner_expression_re, (_, e) => "${" + e + "}")}\`` });
         return instruction;
@@ -491,21 +489,7 @@ export function process_components(template, imported_component_id) {
             }
         })
 
-        // REPLACE "create_render_function"
         if (inner_content) add_block_to_cache(slot_id, create_render_code_string(inner_content));
-
-        // USED TO ATTACH DYNAMIC PROPS WITHOUT TRIGGER A GETTER BY USING A HIDDEN PROPERTY "CORE.PRP_STATE" SYMBOL CONTAINING FUNCTION TO REFERENCE THE PROP VALUE
-        // THE DYNAMIC PROP VALUE IS A FUNCTION CALL MADE BY THE TEMPLATE COMPILER
-        // DOING THIS HERE TO DEFINE PROPERTY ONCE TO SAVE ON PERFORMANCE
-        if (dynamic_props.length > 0) {
-            const bind_dynamic_props = new Function('props', `
-                const CORE = window.__core__;
-                Object.defineProperties(props, { ${dynamic_props.map((p) => `${p.key} : { get() { return this[CORE.PRP_STATE].${p.key}(); } }`).join(",\n")} })
-                return props;
-            `)
-            bind_dynamic_props(props);
-        }
-
         add_block_to_cache(props_id, { props, dynamic_props });
 
         if (match.startsWith("<CoreSlot")) return `<template data-block="core-slot"></template>`;
@@ -519,27 +503,26 @@ export function process_components(template, imported_component_id) {
     })
 }
 
-let frag_length = 0;
-
 /**
  * @param {string} url
  * @param {DocumentFragment} template_processor
  */
 export async function sfc(url, template_processor) {
-    let { script, template, error } = await fetch(url).then(async response => {
-        const text = await response.text();
-        if (!response.ok) return { error: text };
+    const core_assist = window.__core_assist__;
+    if (core_assist && await core_assist.has_cache(url)) return core_assist.use_cache(url);
 
-        const base = document.createElement("template");
-        base.innerHTML = text;
+    const response = await fetch(url);
+    const text = await response.text();
+    if (!response.ok) throw text;
 
-        const scriptEl = base.content.querySelector("script");
-        const script = scriptEl?.innerHTML || "";
-        const template = text.replace(scriptEl?.outerHTML, "");
+    const base = document.createElement("template");
+    base.innerHTML = text;
 
-        return { script, template };
-    });
-    if (error) throw error;
+    const scriptEl = base.content.querySelector("script");
+    const script = scriptEl?.innerHTML || "";
+    const template = text.replace(scriptEl?.outerHTML, "");
+    const full_url = response.url;
+    const etag = response.headers.get("etag") || "";
 
     if (!script) return new Function(create_render_code_string(template, { include_context : true }));
 
@@ -549,41 +532,16 @@ export async function sfc(url, template_processor) {
     const components_id = `component-${make_id(6)}`;
     const render_code_string = create_render_code_string(template_processor(process_components(template, components_id)), { include_context : true, include_lifecycle : true });
     const user_code = extract_default_function(script_code);
-    const current_frag = [...CORE.fragment_cache].splice(frag_length, CORE.fragment_cache.length);
-
-    const injectable_frag_func = `
-    export function $CORE_INJECT_TEMPLATE() {
-        const $CORE = window.__core__;
-        const html = window.__core_assist__.html;
-        ${
-            current_frag.map((frag, i) => {
-                const template = document.createElement("template");
-                template.content.append(frag);
-                const result = `$CORE.fragment_cache[${frag_length + i}] = html(${JSON.stringify(template.innerHTML)})`;
-                frag.append(template.content)
-                return result;
-            }).join("\n\t\t")
-        }
-    }`;
-
     script_code = script_code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
-    script_code = `${script_code}\n\n${injectable_frag_func}`;
 
-    frag_length = CORE.fragment_cache.length;
+    if (core_assist) script_code = core_assist.cache_render_function(full_url, etag, components_id, script_code, CORE.fragment_cache);
 
     const script_blob = new Blob([script_code], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
 
     const { default: render_function, ...component_promises } = await import(script_url);
 
-    const components_keys = Object.keys(component_promises || {});
-    const components_arr = await Promise.all(components_keys.map((k) => component_promises[k]));
-    const components = {};
-
-    for (let i = 0; i < components_keys.length; i++) components[components_keys[i]] = components_arr[i];
-    if (components_keys.length > 0) add_block_to_cache(components_id, components);
-
-    console.log(render_function);
+    await CORE.resolve_components(component_promises, components_id);
 
     return render_function
 }
@@ -608,7 +566,6 @@ export function create_render_code_string(fragment, options) {
     const fragment_cache_index = CORE.fragment_cache.length;
     CORE.fragment_cache.push(fragment);
 
-    // "init_core" is only true for user-defined components, it is false for "if/each/await" block since $CORE is scoped to the parent
     const render_code_string = `
         const $CORE = window.__core__;
         const [$ANCHOR, $SLOT_FN] = $CORE.get_param_args();
@@ -664,10 +621,9 @@ ${
             instruction.component_blocks.map((block, i) => {
                 const component = CORE.block_cache.get(block.props_id);
                 const component_slot_fn_code = CORE.block_cache.get(block.slot_id);
-                return `const component${i} = $CORE.block_cache.get("${block.props_id}");
-        const component${i}_components = $CORE.block_cache.get("${block.component_id}");
-        const component${i}_props = Object.create(component${i}.props);
-        ${component.dynamic_props.length > 0 ? `\n\t\tcomponent${i}.props[$CORE.PRP_STATE] = { ${component.dynamic_props.map((p) => `${p.key}: (() => ${p.expr})`).join(", ")} };\n` : ''}
+                const props = Object.values(component.props);
+                return `const component${i}_components = ${ block.component_id ? `$CORE.block_cache.get("${block.component_id}")` : 'null' };
+        const component${i}_props = {${props.map((p) => `get ${p.key}() { return (${p.value})`).join(",") }${ (props.length > 0 && component.dynamic_props.length > 0) ? ',' : ''} ${component.dynamic_props.map((p) => `get ${p.key}(){ return (${p.expr}) }`).join(", ")}};
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
 }${
         (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +

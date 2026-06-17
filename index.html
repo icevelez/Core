@@ -10,6 +10,7 @@
             "imports": {
                 "core/handlebar": "./core/parser/handlebar.js",
                 "core": "./core/runtime.js",
+                "core-assist" : "./core-assist.js",
                 "router": "./lib/router.js",
                 "manager": "./lib/manager.js"
             }
@@ -18,8 +19,11 @@
         <script type="module" defer>
             import { component } from "core/handlebar";
             import { mount } from "core";
+            import { start_core_assist } from "core-assist";
 
-            const App = await component("src/App.html");
+            await start_core_assist();
+
+            const App = await component("./src/App.html");
             mount(App, "#app");
         </script>
     </body>
