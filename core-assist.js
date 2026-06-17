@@ -67,7 +67,7 @@ const CORE_ASSIST = {
 
         return render_function;
     },
-    validate_cache: async function (url, etag) {
+    background_cache_validation: async function (url, etag) {
         const response = await fetch(url, { headers: { "If-None-Match" : etag, "X-Core-Cache-Validation" : "true" } });
         if (response.status !== 200) return;
         CORE_ASSIST.broadcast_channel.postMessage({ type: "INVALIDATE_MODULE", url });
@@ -85,7 +85,7 @@ export async function start_core_assist() {
 
             if (type === "RESOLVE_HAS_MODULE") {
                 const resolve = resolve_map.get(data.id);
-                if (data.etag) validate_cache(data.url, data.etag);
+                if (data.etag) background_cache_validation(data.url, data.etag); // if no "etag" just re-use cache indefinitely
                 if (resolve) return resolve(data.has_cache);
                 return;
             }
