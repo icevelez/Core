@@ -1,5 +1,4 @@
 let fragment_start_index = 0;
-let message_port;
 
 const resolve_map = new Map();
 
