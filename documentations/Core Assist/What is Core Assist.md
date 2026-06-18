@@ -1,8 +1,8 @@
-# Core Assist
+# What is Core Assist?
 
 ## Overview
 
-Core Assist is a companion library for Core that reduces the amount of work performed by the runtime compiler after a component has been processed.
+Core Assist is a companion library for Core that extends Core by turning runtime compilation into a largely one-time cost, allowing components to remain deployable runtime resources while benefiting from persistent browser-side compilation caching.
 
 Core normally compiles components at runtime like so:
 
@@ -230,6 +230,8 @@ Core Component
         ↓
 Compile
         ↓
+Core Assist Runtime
+        ↓
 Broadcast Channel
         ↓
 Service Worker
@@ -261,96 +263,14 @@ This avoids:
 Core Assist communicates with the Service Worker through the browser's Broadcast Channel API.
 
 ```text
-Core Runtime
+Core Assist Runtime
         ↓
 Broadcast Channel
         ↓
-Service Worker
+Core Worker (Service Worker)
 ```
 
 This allows component compilation and cache management to remain isolated from the application code.
-
----
-
-## Runtime Behavior
-
-Without Core Assist:
-
-```text
-Request Component
-        ↓
-Fetch
-        ↓
-Compile
-        ↓
-Execute
-```
-
-With Core Assist:
-
-```text
-Request Component
-        ↓
-Check Cache
-
-   ┌──────────────┐
-   │ Cache Hit    │
-   └──────┬───────┘
-          ↓
-    Execute
-
-   ┌──────────────┐
-   │ Cache Miss   │
-   └──────┬───────┘
-          ↓
-        Fetch
-          ↓
-       Compile
-          ↓
-       Store
-          ↓
-      Execute
-```
-
----
-
-## Relationship To Build Tools
-
-Core Assist is not a traditional Ahead-of-Time (AOT) compiler.
-
-Traditional AOT compilation occurs during development:
-
-```text
-Source Code
-        ↓
-Build Tool
-        ↓
-Compiled Output
-        ↓
-Deployment
-```
-
-Core Assist operates inside the browser:
-
-```text
-Source Code
-        ↓
-Browser
-        ↓
-Runtime Compilation
-        ↓
-Persistent Cache
-        ↓
-Future Reuse
-```
-
-For this reason, Core Assist is better described as:
-
-* Persistent Runtime Compilation
-* Browser-Assisted Compilation
-* Runtime Compilation Cache
-
-rather than a traditional build step.
 
 ---
 
@@ -365,7 +285,7 @@ Component Updated
         ↓
 Cache Invalidated
         ↓
-Recompile
+Recompile on next request
         ↓
 Store Updated Module
 ```
@@ -390,7 +310,7 @@ Template processing and render code generation are skipped.
 
 Compiled modules can be served directly from the local cache.
 
-### Optional Optimization
+### Optional
 
 Applications that prefer Core's standard runtime compilation can continue using it without modification.
 

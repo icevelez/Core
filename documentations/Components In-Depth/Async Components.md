@@ -14,6 +14,8 @@ Since `component()` returns a Promise, Core can treat component loading as an as
 
 ## Basic Usage
 
+We can use Core's built-in `<CoreComponent>` to load asynchronous components like so
+
 ```html
 {{#await component("./Dashboard.html")}} 
     <h1>Loading dashboar</h1>
@@ -137,3 +139,42 @@ Async components allow Core to:
 - Improve perceived performance
 - Enable modular application architecture
 - Support dynamic feature loading
+
+---
+
+## Security and Trust Model
+
+Dynamic component loading introduces an important concern: **trust**.
+
+When applications can load and execute components at runtime, those components may come from different sources such as administrators, external plugins, or user-generated content. This raises a natural question:
+
+> How does Core decide which components are safe to execute?
+
+Core itself does not enforce a global trust system. Instead, it relies on the application layer to define clear boundaries for what sources are allowed to provide components.
+
+For example, a developer might explicitly allow components only from trusted origins:
+
+```text
+Trusted sources:
+- Same-origin server
+- Verified CDN
+- Internal CMS
+```
+
+While rejecting or sanitizing unknown sources:
+
+```text
+Untrusted sources:
+- User-submitted raw input
+- External unknown domains
+```
+
+Since Core executes components in the browser, it is important to treat component loading similarly to any other form of dynamic code execution, such as `import()` or external scripts.
+
+### Key Principle
+
+Core assumes a simple responsibility boundary:
+
+> Core executes components, but the application decides what components are allowed to be executed.
+
+This keeps Core flexible while allowing developers to implement their own security model based on their needs, such as whitelisting, authentication checks, or signed component verification.
