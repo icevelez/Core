@@ -1,5 +1,3 @@
-let fragment_start_index = 0;
-
 const resolve_map = new Map();
 
 const CORE_ASSIST = {
@@ -7,8 +5,8 @@ const CORE_ASSIST = {
     /** @type {ServiceWorkerRegistration | null} */
     service_worker: null,
     broadcast_channel: new BroadcastChannel("CORE_ASSIST"),
-    set_cache: function (url, etag, code) {
-        CORE_ASSIST.broadcast_channel.postMessage({ type: "CACHE_MODULE", code, url, etag });
+    set_cache: function (url, etag, code, file) {
+        CORE_ASSIST.broadcast_channel.postMessage({ type: "CACHE_MODULE", code, file, url, etag });
     },
     has_cache: async function (url) {
         const new_url = new URL(`${ url.startsWith("http:") || url.startsWith("https:") || url.startsWith("data:") ? url : `${window.location.origin}/${url}` }`);
@@ -21,14 +19,29 @@ const CORE_ASSIST = {
         const { $COMPONENT_ID, default: render_function, ...component_promises } = await import(new_url);
 
         const CORE = window.__core__;
-        await CORE.resolve_components(component_promises, $COMPONENT_ID());
+        await CORE.resolve_components(component_promises, $COMPONENT_ID);
 
         return render_function;
     },
-    background_cache_validation: async function (url, etag) {
-        const response = await fetch(url, { headers: { "If-None-Match" : etag, "X-Core-Cache-Validation" : "true" } });
-        if (response.status !== 200) return;
-        CORE_ASSIST.broadcast_channel.postMessage({ type: "INVALIDATE_MODULE", url });
+    background_cache_validation: async function (url, etag, file) {
+        try {
+            const response = await fetch(url, { headers: { "If-None-Match": etag, "X-Core-Cache-Validation": "true" } });
+
+            if (etag && response.status === 304) return;
+            if (!etag && response.status === 200) {
+                // console.warn("[core-assist]: no etag found. matching response body isntead");
+                if (!file) return // console.error("[core-assist]: no component file found. skipping cache invalidation");
+                const text = await response.text();
+                if (text === file) return;
+                // .error("[core-assist]: component file does not match server response. Invalidating module cache");
+            } else {
+                // console.error("[core-assist]: etag mismatch. Invalidating module cache");
+            }
+
+            CORE_ASSIST.broadcast_channel.postMessage({ type: "INVALIDATE_MODULE", url });
+        } catch (error) {
+            console.log(error)
+        }
     }
 }
 
@@ -43,8 +56,10 @@ export async function start_core_assist() {
 
             if (type === "RESOLVE_HAS_MODULE") {
                 const resolve = resolve_map.get(data.id);
-                if (data.etag) background_cache_validation(data.url, data.etag); // if no "etag" just re-use cache indefinitely
-                if (resolve) return resolve(data.has_cache);
+                if (!resolve) return;
+                CORE_ASSIST.background_cache_validation(data.url, data.etag, data.file);
+                resolve(data.has_cache);
+                resolve_map.delete(data.id);
                 return;
             }
         })

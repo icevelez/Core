@@ -530,7 +530,7 @@ export async function sfc(url, template_processor) {
     const scriptEl = base.content.querySelector("script");
     const script = scriptEl?.innerHTML || "";
     const template = text.replace(scriptEl?.outerHTML, "");
-    const full_url = response.url;
+    const response_url = response.url;
     const etag = response.headers.get("etag") || "";
 
     if (!script) return new Function(create_render_code_string(template, { include_context : true }));
@@ -544,7 +544,7 @@ export async function sfc(url, template_processor) {
     code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
     const template_initialization_code = `
-    export const $COMPONENT_ID = () => "${components_id}";
+    export const $COMPONENT_ID = "${components_id}";
     const $CORE = window.__core__;\n\t${
     CORE.fragment_cache.map((frag, i) => {
         const template = document.createElement("template");
@@ -556,7 +556,7 @@ export async function sfc(url, template_processor) {
 
     CORE.fragment_cache.length = 0;
 
-    if (core_assist) core_assist.set_cache(full_url, etag, code);
+    if (core_assist) core_assist.set_cache(response_url, etag, code, text);
 
     const script_blob = new Blob([code], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
