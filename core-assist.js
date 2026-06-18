@@ -7,11 +7,6 @@ const CORE_ASSIST = {
     /** @type {ServiceWorkerRegistration | null} */
     service_worker: null,
     broadcast_channel: new BroadcastChannel("CORE_ASSIST"),
-    /**
-     * Generates a function that initializes all templates used in a component
-     * @param {string} script_code
-     * @param {DocumentFragment[]} fragment_cache
-     */
     set_cache: function (url, etag, code) {
         CORE_ASSIST.broadcast_channel.postMessage({ type: "CACHE_MODULE", code, url, etag });
     },
