@@ -57,7 +57,7 @@ export async function start_core_assist() {
             if (type === "RESOLVE_HAS_MODULE") {
                 const resolve = resolve_map.get(data.id);
                 if (!resolve) return;
-                CORE_ASSIST.background_cache_validation(data.url, data.etag, data.file);
+                if (data.has_cache) CORE_ASSIST.background_cache_validation(data.url, data.etag, data.file);
                 resolve(data.has_cache);
                 resolve_map.delete(data.id);
                 return;
