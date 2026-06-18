@@ -12,42 +12,8 @@ const CORE_ASSIST = {
      * @param {string} script_code
      * @param {DocumentFragment[]} fragment_cache
      */
-    cache_render_function: function (url, etag, component_id, script_code, fragment_cache) {
-        const current_frag = [...fragment_cache.map((f) => f.cloneNode(true))].splice(fragment_start_index, fragment_cache.length);
-
-        const injectable_frag_func = `
-    export function $COMPONENT_ID() {
-        return "${component_id}";
-    }
-
-    export function $CORE_INIT_TEMPLATE() {
-        const $CORE = window.__core__;
-        const html = window.__core_assist__.html;
-        ${
-            current_frag.map((frag, i) => {
-                const template = document.createElement("template");
-                template.content.append(frag);
-                return `$CORE.fragment_cache[${fragment_start_index + i}] = html(${JSON.stringify(template.innerHTML)})`;
-            }).join("\n\t\t")
-        }
-    }`;
-
-        script_code = `${script_code}${injectable_frag_func}`;
-
-        CORE_ASSIST.broadcast_channel.postMessage({ type: "CACHE_MODULE", code: script_code, url, etag });
-
-        fragment_start_index = fragment_cache.length;
-
-        return script_code;
-    },
-    /**
-     * Converts string to Document Fragment
-     * @param {string} html_string
-     */
-    html: function (html_string) {
-        const template = document.createElement("template");
-        template.innerHTML = html_string;
-        return template.content;
+    set_cache: function (url, etag, code) {
+        CORE_ASSIST.broadcast_channel.postMessage({ type: "CACHE_MODULE", code, url, etag });
     },
     has_cache: async function (url) {
         const new_url = new URL(`${ url.startsWith("http:") || url.startsWith("https:") || url.startsWith("data:") ? url : `${window.location.origin}/${url}` }`);
@@ -57,9 +23,7 @@ const CORE_ASSIST = {
     },
     use_cache: async function (url) {
         const new_url = new URL(`${ url.startsWith("http:") || url.startsWith("https:") || url.startsWith("data:") ? url : `${window.location.origin}/${url}` }`);
-        const { $CORE_INIT_TEMPLATE, $COMPONENT_ID, default: render_function, ...component_promises } = await import(new_url);
-
-        $CORE_INIT_TEMPLATE();
+        const { $COMPONENT_ID, default: render_function, ...component_promises } = await import(new_url);
 
         const CORE = window.__core__;
         await CORE.resolve_components(component_promises, $COMPONENT_ID());

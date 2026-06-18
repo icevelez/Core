@@ -31,6 +31,15 @@ const CORE = {
     /** @type {Map<string, WeakMap<Node, Set<Function>>>} */
     delegated_events: new Map(),
     /**
+     * Converts string to Document Fragment
+     * @param {string} html_string
+     */
+    html: function (html_string) {
+        const template = document.createElement("template");
+        template.innerHTML = html_string;
+        return template.content;
+    },
+    /**
      * @param {Node} node
      * @param {string} text
      */
@@ -527,16 +536,29 @@ export async function sfc(url, template_processor) {
     if (!script) return new Function(create_render_code_string(template, { include_context : true }));
 
     const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
-    let script_code = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
+    let code = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
     const render_code_string = create_render_code_string(template_processor(process_components(template, components_id)), { include_context : true, include_lifecycle : true });
-    const user_code = extract_default_function(script_code);
-    script_code = script_code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
+    const user_code = extract_default_function(code);
+    code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
-    if (core_assist) script_code = core_assist.cache_render_function(full_url, etag, components_id, script_code, CORE.fragment_cache);
+    const template_initialization_code = `
+    export const $COMPONENT_ID = () => "${components_id}";
+    const $CORE = window.__core__;\n\t${
+    CORE.fragment_cache.map((frag, i) => {
+        const template = document.createElement("template");
+        template.content.append(frag);
+        return `const $FRAGMENT_CACHE_${i} = $CORE.html(${JSON.stringify(template.innerHTML)})`;
+    }).join("\n\t")}`;
 
-    const script_blob = new Blob([script_code], { type: 'text/javascript' });
+    code = `${code}${template_initialization_code}`;
+
+    CORE.fragment_cache.length = 0;
+
+    if (core_assist) core_assist.set_cache(full_url, etag, code);
+
+    const script_blob = new Blob([code], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
 
     const { default: render_function, ...component_promises } = await import(script_url);
@@ -569,7 +591,7 @@ export function create_render_code_string(fragment, options) {
     const render_code_string = `
         const $CORE = window.__core__;
         const [$ANCHOR, $SLOT_FN] = $CORE.get_param_args();
-        const $TEMPLATE = $CORE.fragment_cache[${fragment_cache_index}].cloneNode(true);
+        const $TEMPLATE = $FRAGMENT_CACHE_${fragment_cache_index}.cloneNode(true);
 
         const $NODE_START = $TEMPLATE.firstChild;
         const $NODE_END = $TEMPLATE.lastChild;
