@@ -9,6 +9,7 @@
 
     export default function() {
 
+        const [show, setShow] = signal(true);
         const [name, setName] = signal("John");
         const [count, setCount] = signal(0);
         const double = memo(() => count() * 2);
@@ -30,11 +31,16 @@
 {{:else if Router.match("/example").is_match}}
     <Example/>
 {{:else}}
+    <button on:click="() => setShow(!show())">Show Slow Condition</button>
     <button use:myaction="'Hello'" on:click="() => setCount(count()+1)">Count: {{ count() }} {{ double() }}</button>
     <input use:bind="['value', name, setName]">
     <h1>Hello {{ name() }}</h1>
     <hr>
     <PropSlotExample :name="`${name()} ${count()}`">
-        <h1>Hi from Parent Scope {{ count() }} {{ double() }}</h1>
+        {{#if show()}}
+            <h1>Hi from Parent Scope {{ count() }} {{ double() }}</h1>
+        {{:else}}
+            <h1>Hidden From Parent</h1>
+        {{/if}}
     </PropSlotExample>
 {{/if}}

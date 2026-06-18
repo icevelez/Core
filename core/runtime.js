@@ -486,7 +486,7 @@ function remove_whitespace_nodes(root) {
 * @param {string} template
 * @param {number} imported_component_id
 */
-export function process_components(template, imported_component_id) {
+export function process_components(template, imported_component_id, template_processor) {
     return template.replace(/<([A-Z][A-Za-z0-9]*)\s*((?:[^>"']|"[^"]*"|'[^']*')*?)\s*(\/?)>(?:([\s\S]*?)<\/\1>)?/g, (match, tag, attrStr, _, inner_content) => {
         const props = {}, dynamic_props = [], props_id = `props-${make_id(8)}`, slot_id = `slot-${make_id(8)}`;
 
@@ -498,7 +498,7 @@ export function process_components(template, imported_component_id) {
             }
         })
 
-        if (inner_content) add_block_to_cache(slot_id, create_render_code_string(inner_content));
+        if (inner_content) add_block_to_cache(slot_id, create_render_code_string(template_processor(inner_content)));
         add_block_to_cache(props_id, { props, dynamic_props });
 
         if (match.startsWith("<CoreSlot")) return `<template data-block="core-slot"></template>`;
@@ -539,7 +539,7 @@ export async function sfc(url, template_processor) {
     let code = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
-    const render_code_string = create_render_code_string(template_processor(process_components(template, components_id)), { include_context : true, include_lifecycle : true });
+    const render_code_string = create_render_code_string(template_processor(process_components(template, components_id, template_processor)), { include_context : true, include_lifecycle : true });
     const user_code = extract_default_function(code);
     code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
