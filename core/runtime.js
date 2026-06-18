@@ -643,7 +643,7 @@ ${
             instruction.component_blocks.map((block, i) => {
                 const component = CORE.block_cache.get(block.props_id);
                 const component_slot_fn_code = CORE.block_cache.get(block.slot_id);
-                const props = Object.values(component?.props || []);
+                const props = Object.entries(component?.props || []);
                 return `const component${i}_components = ${ block.component_id ? `$CORE.block_cache.get("${block.component_id}")` : 'null' };
         const component${i}_props = {${props.map((p) => `get ${p[0]}() { return (${p[1]}) }`).join(",") }${ (props.length > 0 && component.dynamic_props.length > 0) ? ',' : ''} ${component.dynamic_props.map((p) => `get ${p.key}(){ return (${p.expr}) }`).join(", ")}};
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
