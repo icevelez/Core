@@ -1,4 +1,4 @@
-/** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_id : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Instruction */
+/** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Instruction */
 
 /** @typedef {(props:Record<string, any>) => (() => void)} CoreComponent the function that wraps both the data and render function */
 
@@ -403,13 +403,12 @@ function discover_node_instruction(node, node_index = [], instruction = { childr
     const is_core_component_node = isCoreComponentNode(node);
     if (is_component_node || is_core_component_node) {
         const component = node.dataset.component || null;
-        const component_id = node.dataset.componentId || null;
         const component_tag = node.dataset.componentTag || null;
         if (is_core_component_node && !component) throw "no default component found";
-        if (is_component_node && (!component_id || !component_tag)) throw "component not found";
+        if (is_component_node && !component_tag) throw "component not found";
         replace_node_with_anchor(node, "component-block");
         instruction.children.push(node_index);
-        instruction.component_blocks.push({ child_index: instruction.children.length - 1, component, component_id, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
+        instruction.component_blocks.push({ child_index: instruction.children.length - 1, component, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
         return instruction;
     }
 
@@ -484,9 +483,9 @@ function remove_whitespace_nodes(root) {
 /**
 * Replaces all custom HTML Tags with a placeholder element to be processed as components
 * @param {string} template
-* @param {number} imported_component_id
+* @param {Function} template_processor
 */
-export function process_components(template, imported_component_id, template_processor) {
+export function process_components(template, template_processor) {
     return template.replace(/<([A-Z][A-Za-z0-9]*)\s*((?:[^>"']|"[^"]*"|'[^']*')*?)\s*(\/?)>(?:([\s\S]*?)<\/\1>)?/g, (match, tag, attrStr, _, inner_content) => {
         const props = {}, dynamic_props = [], props_id = `props-${make_id(8)}`, slot_id = `slot-${make_id(8)}`;
 
@@ -508,7 +507,7 @@ export function process_components(template, imported_component_id, template_pro
             return `<template data-block="core-component" data-block-props-id="${props_id}" data-component="${_default}" ${slot_id ? `data-slot-id="${slot_id}"` : ''}></template>`;
         }
 
-        return `<template data-block="component" data-component-tag="${tag}" data-component-id="${imported_component_id}" data-block-props-id="${props_id}" ${slot_id ? `data-slot-id="${slot_id}"` : ''}></template>`;
+        return `<template data-block="component" data-component-tag="${tag}" data-block-props-id="${props_id}" ${slot_id ? `data-slot-id="${slot_id}"` : ''}></template>`;
     })
 }
 
@@ -539,9 +538,9 @@ export async function sfc(url, template_processor) {
     let code = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
-    const render_code_string = create_render_code_string(template_processor(process_components(template, components_id, template_processor)), { include_context : true, include_lifecycle : true });
+    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { components_id, include_context : true, include_lifecycle : true });
     const user_code = extract_default_function(code);
-    code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE */\n\n\t\t/* CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
+    code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE - CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
     const template_initialization_code = `
     export const $COMPONENT_ID = "${components_id}";
@@ -571,7 +570,7 @@ export async function sfc(url, template_processor) {
 /**
  *
  * @param {DocumentFragment} fragment
- * @param {{ include_lifecycle : boolean, include_context : boolean }} options
+ * @param {{ components_id?: number, include_lifecycle: boolean, include_context : boolean }} options
  */
 export function create_render_code_string(fragment, options) {
     if (typeof fragment === "string") {
@@ -608,6 +607,8 @@ ${
 
         const $DISPOSE_FNS = [];
 ${
+    (options?.components_id ? `\n\t\tconst $COMPONENTS = $CORE.block_cache.get("${options.components_id}")` : '')
+}${
         (instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `
         // TEXT & ATTRIBUTES
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.effect(() => {
@@ -639,14 +640,15 @@ ${
             }
         }).join("\n\n\t\t")
 }${
-        (instruction.component_blocks.length > 0 ? '\n\n\t\t// IMPORTED COMPONENTS like <Component/> or\n\t\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t\t' : '') +
+        (instruction.component_blocks.length > 0 ? `\n\n\t\t// IMPORTED COMPONENTS like <Component/> or\n\t\t// CORE COMPONENTS like <CoreComponent default="component_function"/>\n\t\t` : '') +
             instruction.component_blocks.map((block, i) => {
                 const component = CORE.block_cache.get(block.props_id);
                 const component_slot_fn_code = CORE.block_cache.get(block.slot_id);
                 const props = Object.entries(component?.props || []);
-                return `const component${i}_components = ${ block.component_id ? `$CORE.block_cache.get("${block.component_id}")` : 'null' };
-        const component${i}_props = {${props.map((p) => `get ${p[0]}() { return (${p[1]}) }`).join(",") }${ (props.length > 0 && component.dynamic_props.length > 0) ? ',' : ''} ${component.dynamic_props.map((p) => `get ${p.key}(){ return (${p.expr}) }`).join(", ")}};
-        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component ? `${block.component}` : `component${i}_components.${block.component_tag}`}, component${i}_props, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
+                return `const $COMPONENT${i} = ${block.component ? `${block.component}` : `$COMPONENTS.${block.component_tag}`};
+        const $COMPONENT${i}_PROPS = {${props.map((p) => `get ${p[0]}() { return (${p[1]}) }`).join(",") }${ (props.length > 0 && component.dynamic_props.length > 0) ? ',' : ''} ${component.dynamic_props.map((p) => `get ${p.key}(){ return (${p.expr}) }`).join(", ")}};
+        if (!$COMPONENT${i}) throw new Error('component "<${block.component || block.component_tag}>" not found');
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, $COMPONENT${i}, $COMPONENT${i}_PROPS, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
 }${
         (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
             instruction.use_directives.map((directive, i) => {
