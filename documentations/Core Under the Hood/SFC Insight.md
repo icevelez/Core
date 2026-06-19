@@ -360,3 +360,77 @@ return <h1>{name}</h1>;
 ```
 
 Although Core arrived at its architecture independently through its SFC compilation model, it ultimately benefited from the same property: user code and generated rendering code exist within the same lexical scope, allowing variables to be referenced naturally without additional indirection.
+
+--- 
+
+## What This Means
+
+As a consequence, the older component authoring styles were removed:
+
+### JavaScript Components (JSC)
+
+```js
+export default component({...}, class {
+
+});
+```
+
+### Function Scope Components
+
+```js
+export default function($) {
+
+}
+```
+
+Both formats required Core to bridge the gap between component state and template execution through an intermediate scope object.
+
+With Single File Components, that bridge is no longer necessary.
+
+```html
+<script>
+    import { signal } from "core";
+
+    export default function() {
+        const [name, setName] = signal("John");
+    }
+</script>
+
+<h1>{{ name() }}</h1>
+```
+
+The template and component logic naturally share the same lexical scope because the generated rendering code is injected into the same function as the user code.
+
+In retrospect, this greatly simplified Core's architecture:
+
+```text
+v0.3.0
+=======
+Template
+    ↓
+Extract Variables
+    ↓
+Generate Function Parameters
+    ↓
+Evaluate
+
+v0.4.0
+=======
+Template
+    ↓
+Generate $.variable Access
+    ↓
+Evaluate
+
+v0.5.0
+=======
+Template
+    ↓
+Inject Render Code
+    ↓
+Use Native JavaScript Scope
+```
+
+What began as an attempt to remove the `$` prefix ultimately led to a simpler rendering model, a cleaner component API, and the adoption of Single File Components as the primary component format in Core.
+
+In many ways, Core v0.5.0 stopped trying to emulate scope and instead started relying on JavaScript's own lexical scoping system. Once that became possible, supporting multiple component authoring models no longer provided enough benefits to justify the additional complexity.
