@@ -1,5 +1,8 @@
 const resolve_map = new Map();
 
+const CORE = window.__core__;
+if (!CORE) throw new Error("[Core Assist]: Error! Core not found");
+
 const CORE_ASSIST = {
     version: "v0.1.0",
     /** @type {ServiceWorkerRegistration | null} */
@@ -17,33 +20,28 @@ const CORE_ASSIST = {
     use_cache: async function (url) {
         const new_url = new URL(`${ url.startsWith("http:") || url.startsWith("https:") || url.startsWith("data:") ? url : `${window.location.origin}/${url}` }`);
         const { $COMPONENT_ID, default: render_function, ...component_promises } = await import(new_url);
-
-        const CORE = window.__core__;
         await CORE.resolve_components(component_promises, $COMPONENT_ID);
-
         return render_function;
     },
 }
 
 export async function start_core_assist() {
-    if (navigator.serviceWorker) {
-        await navigator.serviceWorker.register("./core-worker.js", { type: "module", scope : "/" });
-        window.__core_assist__ = CORE_ASSIST;
+    if (!navigator.serviceWorker) throw new Error("[Core Assist]: Error! Service Worker not found");
 
-        CORE_ASSIST.broadcast_channel.addEventListener("message", (event) => {
-            const data = event.data;
-            const type = data.type;
+    await navigator.serviceWorker.register("./core-worker.js", { type: "module", scope : "/" });
+    window.__core_assist__ = CORE_ASSIST;
 
-            if (type === "RESOLVE_HAS_MODULE") {
-                const resolve = resolve_map.get(data.id);
-                if (!resolve) return;
-                if (data.has_cache) CORE_ASSIST.broadcast_channel.postMessage({ type: "VALIDATE_MODULE", url : data.url });
-                resolve(data.has_cache);
-                resolve_map.delete(data.id);
-                return;
-            }
-        })
-    } else {
-        console.error("Core Assist Error: Service Worker not found");
-    }
+    CORE_ASSIST.broadcast_channel.addEventListener("message", (event) => {
+        const data = event.data;
+        const type = data.type;
+
+        if (type === "RESOLVE_HAS_MODULE") {
+            const resolve = resolve_map.get(data.id);
+            if (!resolve) return;
+            if (data.has_cache) CORE_ASSIST.broadcast_channel.postMessage({ type: "VALIDATE_MODULE", url : data.url });
+            resolve(data.has_cache);
+            resolve_map.delete(data.id);
+            return;
+        }
+    })
 }
