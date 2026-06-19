@@ -1,6 +1,6 @@
 ## Components as Runtime Resources
 
-Core treats components not as build artifacts, but as **runtime resources** that can be loaded, executed, and composed directly in the browser.
+Core treats components not as files that must be compiled before deployment, but as **runtime resources** that can be loaded, executed, and composed directly in the browser.
 
 Unlike traditional frontend frameworks, where components are transformed into static JavaScript bundles during build time, Core preserves the original component structure as a deployable unit.
 
@@ -18,7 +18,7 @@ Compiled at runtime
 Executed as UI
 ```
 
-In this model, components behave more like web-native resources rather than build-time artifacts.
+In this model, components behave more like web-native resources rather than precompiled application code.
 
 ---
 
@@ -38,7 +38,7 @@ This makes components:
 * Replaceable
 * Dynamically loadable
 
-In essence, a component behaves like a **runtime module exposed over HTTP** rather than a static compile-time artifact.
+In essence, a component behaves like a **runtime module exposed over HTTP** rather than a static compile-time application code.
 
 ---
 
@@ -100,7 +100,7 @@ The core distinction is:
 
 ### Traditional frameworks
 
-Components are **distributed as artifacts**
+Components are **precompiled application code**
 
 ```
 Source → Build → JavaScript Bundle → Deploy
