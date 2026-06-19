@@ -23,26 +23,6 @@ const CORE_ASSIST = {
 
         return render_function;
     },
-    background_cache_validation: async function (url, etag, file) {
-        try {
-            const response = await fetch(url, { headers: { "If-None-Match": etag, "X-Core-Cache-Validation": "true" } });
-
-            if (etag && response.status === 304) return;
-            if (!etag && response.status === 200) {
-                // console.warn("[core-assist]: no etag found. matching response body isntead");
-                if (!file) return // console.error("[core-assist]: no component file found. skipping cache invalidation");
-                const text = await response.text();
-                if (text === file) return;
-                // .error("[core-assist]: component file does not match server response. Invalidating module cache");
-            } else {
-                // console.error("[core-assist]: etag mismatch. Invalidating module cache");
-            }
-
-            CORE_ASSIST.broadcast_channel.postMessage({ type: "INVALIDATE_MODULE", url });
-        } catch (error) {
-            console.log(error)
-        }
-    }
 }
 
 export async function start_core_assist() {
@@ -57,7 +37,7 @@ export async function start_core_assist() {
             if (type === "RESOLVE_HAS_MODULE") {
                 const resolve = resolve_map.get(data.id);
                 if (!resolve) return;
-                if (data.has_cache) CORE_ASSIST.background_cache_validation(data.url, data.etag, data.file);
+                if (data.has_cache) CORE_ASSIST.broadcast_channel.postMessage({ type: "VALIDATE_MODULE", url : data.url });
                 resolve(data.has_cache);
                 resolve_map.delete(data.id);
                 return;

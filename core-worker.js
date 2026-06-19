@@ -8,7 +8,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(cache);
 });
 
-broadcast_channel.addEventListener("message", (event) => {
+broadcast_channel.addEventListener("message", async (event) => {
     const data = event.data;
     const type = data.type;
 
@@ -23,7 +23,25 @@ broadcast_channel.addEventListener("message", (event) => {
         return;
     }
 
-    if (type === "INVALIDATE_MODULE") {
+    if (type === "VALIDATE_MODULE") {
+        try {
+            const cache = localcache.get(data.url);
+            const response = await fetch(data.url, { headers: { "If-None-Match": cache.etag || "", "X-Core-Cache-Validation": "true" } });
+
+            if (cache.etag && response.status === 304) return;
+            if (!cache.etag && response.status === 200) {
+                // console.warn("[core-assist]: no etag found. matching response body isntead");
+                if (!cache.file) return // console.error("[core-assist]: no component file found. skipping cache invalidation");
+                const text = await response.text();
+                if (text === cache.file) return;
+                // .error("[core-assist]: component file does not match server response. Invalidating module cache");
+            } else {
+                // console.error("[core-assist]: etag mismatch. Invalidating module cache");
+            }
+        } catch (error) {
+            console.log(error)
+        }
+
         localcache.delete(data.url);
         return;
     }
