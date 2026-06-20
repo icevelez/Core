@@ -601,8 +601,7 @@ export function create_render_code_string(fragment, options) {
 ${
         style_sheet ? `\n\t\tconst $STYLE = document.createElement("style");
         $STYLE.innerHTML = \`${style_sheet}\`;
-        console.log($STYLE)
-        document.head.append($STYLE);` : ''
+        document.head.append($STYLE);\n` : ''
 }${
     options?.include_context ? `
         const $CONTEXT = $CORE.create_new_context();
