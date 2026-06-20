@@ -1,4 +1,4 @@
-import { create_managed_value } from "manager";
+import { create_managed_value } from "core-manager";
 
 /** @type {{ todo:string, done:boolean }[]} */
 const todo_arr = [

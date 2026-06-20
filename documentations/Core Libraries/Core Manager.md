@@ -1,8 +1,8 @@
-# Manager Library (`manager.js`)
+# Core Manager Library (`core-manager.js`)
 
 ## Introduction
 
-The manager library provides a lightweight way to manage state using actions.
+The core manager library provides a lightweight way to manage state using actions.
 
 It behaves similarly to simplified Flux/Redux-style patterns while remaining extremely small
 
@@ -19,7 +19,7 @@ Features:
 ## Installation
 
 ```js
-import { create_managed_value } from 'https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/manager.js';
+import { create_managed_value } from 'https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/core-manager.js';
 ```
 
 or with importmaps
@@ -28,7 +28,7 @@ or with importmaps
 <script type="importmap">
     {
         "imports": {
-            "manager": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/manager.js"
+            "manager": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/core-manager.js"
         }
     }
 </script>

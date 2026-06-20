@@ -5,8 +5,9 @@ const component_cache = new Map();
 
 /**
  * @param {string} url
+ * @returns {Promise<Function> | Function}
  */
-export async function component(url) {
+export function component(url) {
     if (component_cache.has(url)) return component_cache.get(url);
 
     const promise = sfc(url, function (source) {

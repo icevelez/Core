@@ -1,8 +1,8 @@
-# Router Library (`router.js`)
+# Core Router (`core-router.js`)
 
 ## Introduction
 
-The router library is a lightweight hash-based client-side router.
+The core router library is a lightweight hash-based client-side router.
 
 It supports:
 
@@ -24,7 +24,7 @@ The router uses URL hash fragments:
 ## Installation
 
 ```js
-import { Router } from 'https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/router.js';
+import { Router } from 'https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/core-router.js';
 ```
 
 or with importmaps
@@ -33,13 +33,13 @@ or with importmaps
 <script type="importmap">
     {
         "imports": {
-            "router": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/router.js"
+            "router": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/core-router.js"
         }
     }
 </script>
 ```
 ```js
-import { Router } from 'router';
+import { Router } from 'core-router';
 ```
 
 > [!NOTE]

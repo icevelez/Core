@@ -11,7 +11,8 @@ Pleaes refer to the `Getting Started.md` file in the documentation folder
 ## To Do
 
 ```
-- Add Reactivity support for Map/Set
+- Add Transitions
+- Component CSS Scope 
 ```
 
 ## Repository Structure
