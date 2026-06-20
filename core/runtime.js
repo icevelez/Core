@@ -538,7 +538,9 @@ export async function sfc(url, template_processor) {
     let code = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
-    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { components_id, include_context : true, include_lifecycle : true });
+    const css_scope_id = `core-css-${make_id(6).toLowerCase()}`;
+
+    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { css_scope_id, components_id, include_context : true, include_lifecycle : true });
     const user_code = extract_default_function(code);
     code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE - CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
@@ -546,6 +548,7 @@ export async function sfc(url, template_processor) {
     export const $COMPONENT_ID = "${components_id}";
     const $CORE = window.__core__;\n\t${
     CORE.fragment_cache.map((frag, i) => {
+        inject_scope_id_to_children(frag, css_scope_id);
         const template = document.createElement("template");
         template.content.append(frag);
         return `const $FRAGMENT_CACHE_${i} = $CORE.html(${JSON.stringify(template.innerHTML)})`;
@@ -570,7 +573,7 @@ export async function sfc(url, template_processor) {
 /**
  *
  * @param {DocumentFragment} fragment
- * @param {{ components_id?: number, include_lifecycle: boolean, include_context : boolean }} options
+ * @param {{ css_scope_id?: string, components_id?: number, include_lifecycle: boolean, include_context : boolean }} options
  */
 export function create_render_code_string(fragment, options) {
     if (typeof fragment === "string") {
@@ -583,6 +586,7 @@ export function create_render_code_string(fragment, options) {
 
     let dispose_fn_i = -1;
 
+    const style_sheet = options?.css_scope_id ? apply_scope_css(fragment, options?.css_scope_id) : "";
     const instruction = discover_node_instruction(fragment);
     const fragment_cache_index = CORE.fragment_cache.length;
     CORE.fragment_cache.push(fragment);
@@ -595,6 +599,11 @@ export function create_render_code_string(fragment, options) {
         const $NODE_START = $TEMPLATE.firstChild;
         const $NODE_END = $TEMPLATE.lastChild;
 ${
+        style_sheet ? `\n\t\tconst $STYLE = document.createElement("style");
+        $STYLE.innerHTML = \`${style_sheet}\`;
+        console.log($STYLE)
+        document.head.append($STYLE);` : ''
+}${
     options?.include_context ? `
         const $CONTEXT = $CORE.create_new_context();
         const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);\n\n` : '\n'
@@ -681,6 +690,8 @@ ${
         }
             const parent_node = $NODE_START.parentNode;
             if (parent_node) $CORE.remove_nodes(parent_node, $NODE_START, $NODE_END);
+
+            ${ style_sheet ? `document.head.removeChild($STYLE)` : '' };
         }\n\t`;
 
     return render_code_string;
@@ -707,6 +718,105 @@ function extract_default_function(source) {
     }
 
     return null;
+}
+
+// SCOPE CSS
+
+function splitSelectors(str) {
+    const out = [];
+    let start = 0, depth = 0;
+
+    for (let i = 0; i < str.length; i++) {
+        const c = str[i];
+        if (c === "(" || c === "[") depth++;
+        else if (c === ")" || c === "]") depth--;
+        else if (c === "," && depth === 0) {
+            out.push(str.slice(start, i).trim());
+            start = i + 1;
+        }
+    }
+
+    out.push(str.slice(start).trim());
+    return out;
+}
+
+function scopeSelector(selector, scope) {
+    let depth = 0;
+    let part = "", out = "";
+
+    const flush = () => {
+        if (!part) return;
+        const i = part.search(/:{1,2}/);
+        out += i < 0 ? part + `[${scope}]` : part.slice(0, i) + `[${scope}]` + part.slice(i);
+        part = "";
+    };
+
+    for (const c of selector) {
+        if (c === "(" || c === "[") depth++;
+        else if (c === ")" || c === "]") depth--;
+
+        if (depth === 0 && (c === ">" || c === "+" || c === "~" || c === " ")) {
+            flush();
+            out += c;
+        } else {
+            part += c;
+        }
+    }
+
+    flush();
+
+    return out;
+}
+
+/**
+ * @param {DocumentFragment} fragment
+ * @param {string} scope_id
+ */
+function apply_scope_css(fragment, scope_id) {
+    let style_content = '';
+
+    for (const child of Array.from(fragment.children)) {
+        if (!(child instanceof HTMLStyleElement)) continue;
+        style_content += child.innerHTML;
+        fragment.removeChild(child);
+    }
+
+    if (!style_content) return;
+
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(style_content);
+
+    return process_css_scoping_rules(sheet.cssRules, scope_id)
+}
+
+/**
+ * @param {DocumentFragment} fragment
+ */
+function inject_scope_id_to_children(fragment, scope_id) {
+    for (const child of Array.from(fragment.children)) {
+        child.setAttribute(scope_id, "")
+        if (child.children.length > 0) inject_scope_id_to_children(child, scope_id);
+    }
+}
+
+function scopeSelectors(cssSelector, scope) {
+    return splitSelectors(cssSelector).map(s => scopeSelector(s, scope)).join(", ");
+}
+
+/**
+ * @param {CSSRuleList} rule
+ * @param {string} scope_id
+ */
+function process_css_scoping_rules(rule, scope_id) {
+    let style = "";
+
+    for (let i = 0; i < rule.length; i++) {
+        style += `${scopeSelectors(rule[i].selectorText, `${scope_id}`)} {\n${rule[i].cssText.replace(rule[i].selectorText, "").slice(2, -1)}\n`;
+        if (rule.cssRules?.length) style += process_css_scoping_rules(rule.cssRules);
+        style += `}\n`
+    }
+
+    return style;
 }
 
 window.__core__ = CORE;
