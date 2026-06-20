@@ -23,7 +23,7 @@
 <div>
     <h2>Completed: {{ todo_completed() }} / {{ todos.value.length }}</h2>
     {{#each todos.value as todo, i}}
-        <div class="todo_item">
+        <div>
             <label style="display: flex; gap: 0.5rem; user-select: none;">
                 <input type="checkbox" :checked="todo().done" on:click="() => todos.toggle_todo(i)"/>
                 <p>{{ todo().todo }}{{ todo().done ? ' ✅ ' : '' }}</p>
@@ -31,22 +31,4 @@
             <button on:click="() => todos.remove_todo(i)">Remove</button>
         </div>
     {{/each}}
-    <div class="card" data="test">
-        <h1>HELLO WORLD</h1>
-    </div>
 </div>
-
-
-<style>
-    div.todo_item {
-        background: red;
-        color: black;
-    }
-
-    .card[data="test"] {
-        h1 {
-            font-size: 4rem;
-        }
-        font-family: sans-serif;
-    }
-</style>
