@@ -785,7 +785,7 @@ function apply_scope_css(fragment, scope_id) {
     let style_content = '';
 
     for (const child of Array.from(fragment.children)) {
-        if (!(child instanceof HTMLStyleElement)) continue;
+        if (!(child instanceof HTMLStyleElement && child.hasAttribute("scoped"))) continue;
         style_content += child.innerHTML;
         fragment.removeChild(child);
     }
@@ -816,19 +816,23 @@ function scopeSelectors(cssSelector, scope) {
  * @param {CSSRuleList} rule
  * @param {string} scope_id
  */
-function process_css_scoping_rules(rule_cssRules, scope_id) {
-    let css = "";
+ function process_css_scoping_rules(rules, scope_id) {
+     let css = "";
 
-    for (const rule of rule_cssRules) {
-        css += rule instanceof CSSStyleRule
-            ? `${scopeSelectors(rule.selectorText, scope_id)} { ${rule.style.cssText} } `
-            : rule.cssRules?.length
-                ? `${rule.cssText.slice(0, rule.cssText.indexOf("{") + 1)} ${process_css_scoping_rules(rule.cssRules, scope_id)} } `
-                : `${rule.cssText} `;
-    }
+     for (const rule of rules) {
+         if (rule instanceof CSSStyleRule) {
+             css += `${scopeSelectors(rule.selectorText, scope_id)} { ${rule.style?.cssText || ""} ${(rule.cssRules?.length) ? process_css_scoping_rules(rule.cssRules, scope_id) : ''} }`;
+             continue;
+         }
+         if (rule.cssRules?.length) {
+             css += `${rule.cssText.split("{")[0]} { ${process_css_scoping_rules(rule.cssRules, scope_id)} }`;
+             continue;
+         }
+         css += `${rule.cssText} `;
+     }
 
-    return css;
-}
+     return css;
+ }
 
 window.__core__ = CORE;
 
