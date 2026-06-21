@@ -12,7 +12,6 @@ Pleaes refer to the `Getting Started.md` file in the documentation folder
 
 ```
 - Add Transitions
-- Component CSS Scope 
 ```
 
 ## Repository Structure
