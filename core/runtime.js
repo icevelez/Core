@@ -937,13 +937,6 @@ function trigger(dep) {
 }
 
 /**
- * @param {Container} container
- */
-function trigger_container(container) {
-    for (const key in container.deps) trigger(container.deps[key]);
-}
-
-/**
  * @param {{ deps : Set<Function>, children : Set<Function> }[]} effect_fn
  */
 function dispose_deps(effect_fn) {
@@ -1032,14 +1025,14 @@ export function signal(initial_value) {
     let container = null;
     let proxy = null;
 
+    const dep = new Set();
+
     if (is_plain_object(initial_value)) {
         const is_proxy = initial_value[IS_PROXY];
         if (is_proxy) value = initial_value[CONTAINER].value;
-        container = create_container(value);
+        container = create_container(value, dep);
         proxy = create_proxy(container);
     }
-
-    const dep = new Set();
 
     const read = () => {
         track(dep);
@@ -1059,14 +1052,14 @@ export function signal(initial_value) {
             value = null;
 
             if (!container) {
-                container = create_container(real_value);
+                container = create_container(real_value, dep);
             } else {
                 container.value = real_value;
             }
             proxy = create_proxy(container);
 
             trigger(dep);
-            trigger_container(container);
+            if (container) for (const key in container.deps) trigger(container.deps[key]);
 
             return;
         }
@@ -1097,9 +1090,10 @@ const is_plain_object = (v) => v && typeof v === 'object' && ((Object.getPrototy
 
 /** @typedef {ReturnType<typeof create_container>} Container */
 
-function create_container(object) {
+function create_container(object, parent_dep) {
     return {
         value: object,
+        parent_dep,
         deps: Object.create(null),
         child_containers: Object.create(null),
     };
@@ -1132,7 +1126,7 @@ const handler = {
                 if (!array_mutation_keys.has(key)) return result;
 
                 trigger(dep);
-                trigger_container(container);
+                if (container.parent_dep) trigger(container.parent_dep);
 
                 return result;
             }
