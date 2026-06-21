@@ -512,6 +512,33 @@ export function process_components(template, template_processor) {
 }
 
 /**
+ * Extracts the contents of "export default function() { .... }"
+ * @param {string} source
+ */
+function extract_default_function(source) {
+    const match = /export\s+default\s+function(?:\s+\w+)?\s*\(/.exec(source);
+    if (!match) return null;
+
+    let i = source.indexOf("{", match.index);
+    if (i === -1) return null;
+
+    const start = i;
+    let depth = 1;
+
+    while (++i < source.length) {
+        const ch = source[i];
+
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+            depth--;
+            if (depth === 0) return source.slice(start + 1, i);
+        }
+    }
+
+    return null;
+}
+
+/**
  * @param {string} url
  * @param {DocumentFragment} template_processor
  */
@@ -696,32 +723,11 @@ ${
     return render_code_string;
 }
 
-function extract_default_function(source) {
-    const match = /export\s+default\s+function(?:\s+\w+)?\s*\(/.exec(source);
-    if (!match) return null;
-
-    let i = source.indexOf("{", match.index);
-    if (i === -1) return null;
-
-    const start = i;
-    let depth = 1;
-
-    while (++i < source.length) {
-        const ch = source[i];
-
-        if (ch === "{") depth++;
-        else if (ch === "}") {
-            depth--;
-            if (depth === 0) return source.slice(start + 1, i);
-        }
-    }
-
-    return null;
-}
-
 // SCOPE CSS
 
 function splitSelectors(str) {
+    if (!str) return [];
+
     const out = [];
     let start = 0, depth = 0;
 
@@ -810,8 +816,10 @@ function process_css_scoping_rules(rule, scope_id) {
     let style = "";
 
     for (let i = 0; i < rule.length; i++) {
-        style += `${scopeSelectors(rule[i].selectorText, `${scope_id}`)} {\n${rule[i].cssText.replace(rule[i].selectorText, "").slice(2, -1)}\n`;
-        if (rule.cssRules?.length) style += process_css_scoping_rules(rule.cssRules);
+        style += (rule[i] instanceof CSSMediaRule) ?
+            `@media ${rule[i].conditionText} {\n` :
+            `${scopeSelectors(rule[i].selectorText, `${scope_id}`)} {\n${rule[i].style.cssText}\n`;
+        if (rule[i].cssRules?.length) style += process_css_scoping_rules(rule[i].cssRules, scope_id);
         style += `}\n`
     }
 
