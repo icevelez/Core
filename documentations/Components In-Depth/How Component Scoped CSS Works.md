@@ -157,6 +157,7 @@ The selector logic is intentionally minimal:
 
 * No full selector AST
 * No full CSS grammar parsing
+* @import is not allowed 
 * Limited handling of:
 
   * `:not()` complex nesting
