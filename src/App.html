@@ -38,9 +38,29 @@
     <hr>
     <PropSlotExample :name="`${name()} ${count()}`">
         {{#if show()}}
-            <h1>Hi from Parent Scope {{ count() }} {{ double() }}</h1>
+            <div class="card">
+                <h1>Hi from Parent Scope {{ count() }} {{ double() }}</h1>
+            </div>
         {{:else}}
             <h1>Hidden From Parent</h1>
         {{/if}}
     </PropSlotExample>
 {{/if}}
+
+<style>
+    h1 {
+        color: blue;
+    }
+
+    .card {
+        h1 {
+            color: green;
+        }
+    }
+
+    @media (max-width: 768px) {
+        h1 {
+            color: red !important;
+        }
+    }
+</style>
