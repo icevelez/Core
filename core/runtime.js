@@ -816,11 +816,9 @@ function process_css_scoping_rules(rule, scope_id) {
     let style = "";
 
     for (let i = 0; i < rule.length; i++) {
-        style += (rule[i] instanceof CSSMediaRule) ?
-            `@media ${rule[i].conditionText} {\n` :
-            `${scopeSelectors(rule[i].selectorText, `${scope_id}`)} {\n${rule[i].style.cssText}\n`;
+        style += (rule[i] instanceof CSSMediaRule) ? `@media ${rule[i].conditionText} { ` : `${scopeSelectors(rule[i].selectorText, `${scope_id}`)} { ${rule[i].style.cssText} `;
         if (rule[i].cssRules?.length) style += process_css_scoping_rules(rule[i].cssRules, scope_id);
-        style += `}\n`
+        style += ` } `
     }
 
     return style;
