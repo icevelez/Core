@@ -565,7 +565,7 @@ export async function sfc(url, template_processor) {
     let code = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
-    const css_scope_id = `core-css-${make_id(6).toLowerCase()}`;
+    const css_scope_id = `core-${make_id(6).toLowerCase()}`;
 
     const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { css_scope_id, components_id, include_context : true, include_lifecycle : true });
     const user_code = extract_default_function(code);
