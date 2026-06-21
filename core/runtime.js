@@ -299,10 +299,14 @@ const CORE = {
             promise.then(([value, error]) => {
                 if (last_id !== curr_id) return;
 
-                // const old_context = set_new_context(context);
+                const old_context = set_new_context(context);
                 CORE.set_param_args(fragment);
-                dispose_fn = (error ? catch_fn : then_fn)(error ? error : value);
-                // set_new_context(old_context);
+
+                if (error && catch_fn) dispose_fn = catch_fn(error);
+                else if (error) throw error;
+                else dispose_fn = then_fn(value);
+
+                set_new_context(old_context);
 
                 pending_dispose_fn();
                 pending_dispose_fn = null;
@@ -812,16 +816,18 @@ function scopeSelectors(cssSelector, scope) {
  * @param {CSSRuleList} rule
  * @param {string} scope_id
  */
-function process_css_scoping_rules(rule, scope_id) {
-    let style = "";
+function process_css_scoping_rules(rule_cssRules, scope_id) {
+    let css = "";
 
-    for (let i = 0; i < rule.length; i++) {
-        style += (rule[i] instanceof CSSMediaRule) ? `@media ${rule[i].conditionText} { ` : `${scopeSelectors(rule[i].selectorText, `${scope_id}`)} { ${rule[i].style.cssText} `;
-        if (rule[i].cssRules?.length) style += process_css_scoping_rules(rule[i].cssRules, scope_id);
-        style += ` } `
+    for (const rule of rule_cssRules) {
+        css += rule instanceof CSSStyleRule
+            ? `${scopeSelectors(rule.selectorText, scope_id)} { ${rule.style.cssText} } `
+            : rule.cssRules?.length
+                ? `${rule.cssText.slice(0, rule.cssText.indexOf("{") + 1)} ${process_css_scoping_rules(rule.cssRules, scope_id)} } `
+                : `${rule.cssText} `;
     }
 
-    return style;
+    return css;
 }
 
 window.__core__ = CORE;
