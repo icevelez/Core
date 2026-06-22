@@ -803,10 +803,6 @@ function inject_scope_id_to_children(fragment, scope_id) {
     }
 }
 
-function scopeSelectors(cssSelector, scope) {
-    return splitSelectors(cssSelector).map(s => scopeSelector(s, scope)).join(", ");
-}
-
 /**
  * @param {CSSRuleList} rule
  * @param {string} scope_id
@@ -816,11 +812,11 @@ function scopeSelectors(cssSelector, scope) {
 
      for (const rule of rules) {
          if (rule instanceof CSSStyleRule) {
-             css += `${scopeSelectors(rule.selectorText, scope_id)} { ${rule.style?.cssText || ""} ${(rule.cssRules?.length) ? process_css_scoping_rules(rule.cssRules, scope_id) : ''} }`;
+             css += `${splitSelectors(rule.selectorText).map(s => scopeSelector(s, scope_id)).join(", ")} { ${rule.style?.cssText || ""} ${(rule.cssRules?.length) ? process_css_scoping_rules(rule.cssRules, scope_id) : ''} } `;
              continue;
          }
          if (rule.cssRules?.length) {
-             css += `${rule.cssText.split("{")[0]} { ${process_css_scoping_rules(rule.cssRules, scope_id)} }`;
+             css += `${rule.cssText.split("{")[0]} { ${process_css_scoping_rules(rule.cssRules, scope_id)} } `;
              continue;
          }
          css += `${rule.cssText} `;
