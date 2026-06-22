@@ -526,16 +526,14 @@ function extract_default_function(source) {
     let i = source.indexOf("{", match.index);
     if (i === -1) return null;
 
-    const start = i;
     let depth = 1;
 
     while (++i < source.length) {
         const ch = source[i];
-
         if (ch === "{") depth++;
         else if (ch === "}") {
             depth--;
-            if (depth === 0) return source.slice(start + 1, i);
+            if (depth === 0) return source.slice(match.index + 1, i);
         }
     }
 
@@ -563,15 +561,13 @@ export async function sfc(url, template_processor) {
     const response_url = response.url;
     const etag = response.headers.get("etag") || "";
 
-    if (!script) return new Function(create_render_code_string(template, { include_context : true }));
-
     const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
-    let code = `//# sourceURL=${url.split("/").at(-1)}${script}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
+    let code = `//# sourceURL=${url.split("/").at(-1)}${script || "\n\texport default function() {}"}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
     const css_scope_id = `core-${make_id(6).toLowerCase()}`;
 
-    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { css_scope_id, components_id, include_context : true, include_lifecycle : true });
+    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { css_scope_id, components_id, include_context : Boolean(script), include_lifecycle : Boolean(script) });
     const user_code = extract_default_function(code);
     code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE - CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
@@ -719,9 +715,8 @@ ${
             options?.include_context ? `\n\t\t\t// RESET CONTEXT\n\t\t\t$CORE.set_new_context($OLD_CONTEXT);\n` : ''
         }
             const parent_node = $NODE_START.parentNode;
-            if (parent_node) $CORE.remove_nodes(parent_node, $NODE_START, $NODE_END);
-
-            ${ style_sheet ? `document.head.removeChild($STYLE)` : '' };
+            if (parent_node) $CORE.remove_nodes(parent_node, $NODE_START, $NODE_END);${
+            style_sheet ? `\n\t\t\tdocument.head.removeChild($STYLE);` : '' }
         }\n\t`;
 
     return render_code_string;
