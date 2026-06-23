@@ -45,7 +45,7 @@ const CORE = {
      */
     set_text: function (node, text) {
         if (node.__cacheText === text) return;
-        node.__cacheText = node.nodeValue = text;
+        node.__cacheText = node.textContent = text;
     },
     get_param_args: function () {
         const args = arg_global;
@@ -113,7 +113,7 @@ const CORE = {
      * @param {Node} endNode
      */
     remove_nodes: function (parentNode, startNode, endNode) {
-        if (!parentNode) throw "parent node not found";
+        if (!parentNode) throw new Error("parent node not found");
 
         if (startNode === endNode) {
             parentNode.removeChild(startNode);
@@ -303,7 +303,7 @@ const CORE = {
                 CORE.set_param_args(fragment);
 
                 if (error && catch_fn) dispose_fn = catch_fn(error);
-                else if (error) throw error;
+                else if (error) throw new Error(error);
                 else dispose_fn = then_fn(value);
 
                 set_new_context(old_context);
@@ -408,8 +408,8 @@ function discover_node_instruction(node, node_index = [], instruction = { childr
     if (is_component_node || is_core_component_node) {
         const component = node.dataset.component || null;
         const component_tag = node.dataset.componentTag || null;
-        if (is_core_component_node && !component) throw "no default component found";
-        if (is_component_node && !component_tag) throw "component not found";
+        if (is_core_component_node && !component) throw new Error("no default component found");
+        if (is_component_node && !component_tag) throw new Error("component not found");
         replace_node_with_anchor(node, "component-block");
         instruction.children.push(node_index);
         instruction.component_blocks.push({ child_index: instruction.children.length - 1, component, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
@@ -550,7 +550,10 @@ export async function sfc(url, template_processor) {
 
     const response = await fetch(url);
     const text = await response.text();
-    if (!response.ok) throw text;
+    if (!response.ok) throw new Error(text);
+
+    const response_url = response.url;
+    const etag = response.headers.get("etag") || "";
 
     const base = document.createElement("template");
     base.innerHTML = text;
@@ -558,8 +561,6 @@ export async function sfc(url, template_processor) {
     const scriptEl = base.content.querySelector("script");
     const script = scriptEl?.innerHTML || "";
     const template = text.replace(scriptEl?.outerHTML, "");
-    const response_url = response.url;
-    const etag = response.headers.get("etag") || "";
 
     const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
     let code = `//# sourceURL=${url.split("/").at(-1)}${script || "\n\texport default function() {}"}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
@@ -961,7 +962,7 @@ export function next_tick() {
  * @param {{ track_inner_effect : boolean, is_priority : boolean }} options
  */
 export function effect(fn, options = { track_inner_effect : true, is_priority : false }) {
-    if (typeof fn !== "function") throw "Effect callback is not a function";
+    if (typeof fn !== "function") throw new Error("Effect callback is not a function");
 
     let dispose_fn = null;
     let active = true;      // flag to prevent effect re-run if already dispose
@@ -1068,6 +1069,7 @@ export function signal(initial_value) {
         if (value === new_value) return;
 
         value = new_value;
+        if (container) container.parent_dep = null;
         container = proxy = null;
 
         trigger(dep);
