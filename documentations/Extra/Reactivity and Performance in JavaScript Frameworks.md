@@ -1,439 +1,329 @@
 # Reactivity and Performance in JavaScript Frameworks
 
-One of the most common misconceptions in frontend development is:
+A common misconception in frontend development is:
 
 > Signals automatically make a framework faster.
 
-In reality, signals are only one piece of the performance puzzle.
+In reality, signals are only one part of the performance system.
 
-To understand why frameworks perform differently, we need to separate four distinct concerns:
+Framework performance emerges from four independent layers:
 
-1. **Change Detection** — How does the framework know something changed?
-2. **Scheduling Granularity** — How much work gets scheduled?
-3. **DOM Update Granularity** — How much UI work executes?
-4. **DOM Update Strategy** — How does the framework determine what DOM operations to perform?
+1. **Change Detection** — how state changes are observed
+2. **Scheduling Granularity** — what unit of work is scheduled
+3. **DOM Update Granularity** — how much UI is affected per update
+4. **DOM Update Strategy** — how DOM mutations are computed and applied
 
-Many framework comparisons accidentally combine these concepts together, leading to misleading conclusions such as:
+These layers are often conflated, leading to incorrect comparisons such as:
 
-> Signals are faster than dirty checking.
+> “Signals are faster than Virtual DOM”
 
 or
 
-> Virtual DOM is slower than signals.
+> “Dirty checking is inefficient”
 
-Neither statement is universally true because they compare different layers of the rendering pipeline.
+These statements are incomplete because they mix different architectural layers.
 
 ---
 
 # Layer 1: Change Detection
 
-Change detection answers a single question:
+Change detection answers:
 
-> How does the framework know state changed?
+> How does the framework know something changed?
 
-| Framework             | Change Detection                                   |
-| --------------------- | -------------------------------------------------- |
-| React                 | Explicit state updates (`setState`, Hooks setters) |
-| Angular (Pre-Signals) | Change detection cycle + binding comparisons       |
-| Vue 2                 | Getter/Setter dependency tracking                  |
-| Vue 3                 | Proxy-based dependency tracking                    |
-| Svelte 3/4            | Compiler-generated invalidation                    |
-| Svelte 5              | Signals (Runes)                                    |
-| Solid                 | Signals                                            |
-| Alpine                | Vue reactivity (Proxy-based dependency tracking)   |
+| Framework             | Change Detection                                     |
+| --------------------- | ---------------------------------------------------- |
+| React                 | Explicit state updates (setState / hooks)            |
+| Angular (Pre-Signals) | Zone-triggered change detection + binding evaluation |
+| Vue 2                 | Getter/Setter dependency tracking                    |
+| Vue 3                 | Proxy-based dependency tracking                      |
+| Svelte 3/4            | Compile-time invalidation markers                    |
+| Svelte 5              | Signals (runes-based reactive primitives)            |
+| Solid                 | Signals                                              |
+| Alpine                | Proxy-based reactive system                          |
 
-Notice that change detection says nothing about how the UI updates.
-
-It only determines that a change occurred.
+Change detection only answers *what changed*, not how updates occur.
 
 ---
 
 # Layer 2: Scheduling Granularity
 
-Scheduling granularity answers:
+Scheduling granularity defines:
 
-> How much runtime work gets scheduled after a change?
+> What unit of work is executed when state changes?
 
-| Framework             | Scheduling Granularity      |
-| --------------------- | --------------------------- |
-| React                 | Component                   |
-| Angular (Pre-Signals) | Root View                   |
-| Vue 2                 | Watcher → Component         |
-| Vue 3                 | Reactive Effect → Component |
-| Svelte 3/4            | Component                   |
-| Svelte 5              | Effect                      |
-| Solid                 | Effect                      |
-| Alpine                | Effect                      |
+| Framework             | Scheduling Granularity             |
+| --------------------- | ---------------------------------- |
+| React                 | Component                          |
+| Angular (Pre-Signals) | View tree (with subtree skipping)  |
+| Vue 2                 | Watcher → Component                |
+| Vue 3                 | Reactive effect → Component update |
+| Svelte 3/4            | Component                          |
+| Svelte 5              | Reactive effect                    |
+| Solid                 | Reactive effect                    |
+| Alpine                | Reactive effect                    |
 
-This determines how much work begins executing.
-
-It does not determine how much DOM work ultimately occurs.
+Important: scheduling does NOT describe DOM update efficiency.
 
 ---
 
 # Layer 3: DOM Update Granularity
 
-DOM update granularity answers:
+DOM update granularity defines:
 
-> How much UI work executes once updates begin?
+> How much of the UI is affected per update execution?
 
-| Framework             | DOM Update Granularity |
-| --------------------- | ---------------------- |
-| React                 | Component subtree      |
-| Angular (Pre-Signals) | Binding                |
-| Vue 2                 | Component subtree      |
-| Vue 3                 | Dynamic VDOM regions   |
-| Svelte 3/4            | Binding                |
-| Svelte 5              | Effect                 |
-| Solid                 | Effect                 |
-| Alpine                | Directive / Effect     |
-
-This layer often has a larger impact on performance than the reactivity model itself.
+| Framework  | DOM Update Granularity                |
+| ---------- | ------------------------------------- |
+| React      | Component subtree                     |
+| Angular    | Binding-level                         |
+| Vue 2      | Component subtree                     |
+| Vue 3      | Dynamic VDOM subtree                  |
+| Svelte 3/4 | Binding-level (compiled instructions) |
+| Svelte 5   | Effect-level                          |
+| Solid      | Fine-grained binding/effect-level     |
+| Alpine     | Directive-level                       |
 
 ---
 
 # Layer 4: DOM Update Strategy
 
-DOM update strategy answers:
+DOM update strategy defines:
 
-> How does the framework determine which DOM mutations to perform?
+> How DOM mutations are determined and executed
 
-| Framework             | DOM Update Strategy                    |
-| --------------------- | -------------------------------------- |
-| React                 | Virtual DOM reconciliation             |
-| Angular (Pre-Signals) | Binding comparison                     |
-| Vue 2                 | Virtual DOM reconciliation             |
-| Vue 3                 | Compiler-assisted Virtual DOM patching |
-| Svelte 3/4            | Compiler-generated update instructions |
-| Svelte 5              | Compiler-generated reactive effects    |
-| Solid                 | Runtime dependency graph               |
-| Alpine                | Runtime directive effects              |
-
-This is where much of the actual performance difference between frameworks originates.
+| Framework  | DOM Update Strategy                           |
+| ---------- | --------------------------------------------- |
+| React      | Virtual DOM reconciliation                    |
+| Angular    | Binding comparison (dirty checking)           |
+| Vue 2      | Virtual DOM reconciliation                    |
+| Vue 3      | Compiler-assisted VDOM patching               |
+| Svelte 3/4 | Compile-time generated update instructions    |
+| Svelte 5   | Compiler-generated reactive effects + signals |
+| Solid      | Runtime reactive dependency graph             |
+| Alpine     | Reactive directive execution                  |
 
 ---
 
-# Why Signals Do Not Automatically Improve Performance
+# Why Signals Do Not Guarantee Performance
 
-Consider two hypothetical frameworks.
+Consider:
 
-## Framework A
+### Framework A
 
 ```txt
-Signal changed
-    ↓
+Signal change
+  ↓
 Component update
-    ↓
-Virtual DOM creation
-    ↓
-Virtual DOM diff
-    ↓
+  ↓
+VDOM generation
+  ↓
+Diff
+  ↓
 DOM update
 ```
 
-## Framework B
+### Framework B
 
 ```txt
-Signal changed
-    ↓
+Signal change
+  ↓
 Effect executes
-    ↓
-Text node updated
+  ↓
+Direct DOM update
 ```
 
-Both use signals.
+Both use signals, but performance differs due to:
 
-However, Framework B performs significantly less work.
+* scheduling model
+* update granularity
+* DOM strategy
 
 Signals only answer:
 
 > What changed?
 
-They do not answer:
-
-> How much work should run?
-
-or
-
-> How should the DOM update?
-
-Those decisions are made by the scheduling and rendering layers.
+They do not define how updates are executed.
 
 ---
 
 # React
 
-React uses explicit state updates.
-
-```jsx
-const [count, setCount] = useState(0);
-```
-
-When state changes:
+React uses component-based rendering with Virtual DOM reconciliation.
 
 ```txt
-setState()
-    ↓
+setState
+  ↓
 Component scheduled
-    ↓
-Component function executes
-    ↓
-New Virtual DOM tree
-    ↓
+  ↓
+Component re-executes
+  ↓
+Virtual DOM created
+  ↓
 Reconciliation
-    ↓
-DOM mutations
+  ↓
+DOM updates
 ```
 
-React's update granularity is generally component-oriented.
+Strengths:
 
-The framework re-executes components and compares Virtual DOM trees to determine which DOM operations are required.
+* predictable rendering model
+* composability
 
-Advantages:
+Cost:
 
-* Predictable rendering model
-* Strong composability
-* Flexible runtime behavior
-
-Tradeoffs:
-
-* Component execution cost
-* Virtual DOM allocation
-* Reconciliation overhead
+* component re-execution
+* VDOM allocation
+* diffing overhead
 
 ---
 
 # Angular (Pre-Signals)
 
-Angular's templates compile into binding instructions.
-
-```html
-<p>{{ name }}</p>
-```
-
-Conceptually:
-
-```js
-if (oldValue !== name) {
-    textNode.data = name;
-}
-```
-
-Angular stores previous values inside LView arrays.
-
-During change detection:
+Angular performs tree-based change detection with binding evaluation.
 
 ```txt
-Root View
-    ↓
-Traverse Views
-    ↓
-Evaluate Bindings
-    ↓
-Compare Values
-    ↓
-Update DOM
+Change detection trigger
+  ↓
+Traverse view tree
+  ↓
+Evaluate bindings
+  ↓
+Compare values
+  ↓
+Apply DOM updates
 ```
 
-Angular's binding comparisons are extremely cheap.
-
-In isolation, a single binding comparison is typically cheaper than Virtual DOM reconciliation work.
-
-However, Angular must traverse views before reaching those bindings.
-
-This demonstrates an important principle:
-
-> The cost of scheduling and traversal can matter as much as the cost of change detection itself.
+Important nuance:
+Angular is not purely “root-level”; it supports subtree skipping via OnPush and other optimizations.
 
 ---
 
 # Vue 2
 
-Vue 2 combines dependency-tracked reactivity with Virtual DOM rendering.
+Vue 2 uses dependency tracking + Virtual DOM.
 
 ```txt
-Reactive Dependency
-    ↓
-Watcher
-    ↓
-Component Update
-    ↓
-Virtual DOM Diff
-    ↓
-DOM Patch
+Dependency tracked
+  ↓
+Watcher triggered
+  ↓
+Component render
+  ↓
+VDOM diff
+  ↓
+DOM patch
 ```
-
-Vue 2's dependency tracking is more selective than Angular's root-level traversal because only dependent watchers are notified.
-
-However, rendering remains component-oriented and Virtual DOM-based.
 
 ---
 
 # Vue 3
 
-Vue 3 modernized Vue's reactivity using Proxies and effects.
+Vue 3 improves performance via compiler-assisted VDOM optimization.
 
-Its biggest performance improvement was not merely introducing Proxy-based tracking.
+Key idea:
 
-It was combining:
-
-```txt
-Dependency Tracking
-+
-Compiler Hints
-+
-Optimized Virtual DOM
-```
-
-For example:
-
-```html
-<div>
-  <h1>Hello</h1>
-  <p>{{ name }}</p>
-</div>
-```
-
-The compiler knows:
+* static parts are hoisted
+* dynamic parts are flagged
 
 ```txt
-<h1> static
-<p> dynamic
+Reactive change
+  ↓
+Component update
+  ↓
+VDOM patch (optimized via flags)
+  ↓
+DOM update
 ```
 
-and generates patch flags.
-
-During updates Vue can skip large portions of the Virtual DOM tree and patch only known dynamic regions.
-
-This significantly reduces reconciliation work compared to traditional Virtual DOM approaches.
+Vue still relies on VDOM, but reduces unnecessary diffing.
 
 ---
 
 # Svelte 3/4
 
-Svelte 3 and 4 are frequently mischaracterized as component-level rendering systems.
-
-In reality, only the scheduling is component-oriented.
-
-The DOM updates themselves are binding-oriented.
-
-Example:
-
-```html
-<h1>{name}</h1>
-<button>{count}</button>
-```
-
-Compiles into something conceptually similar to:
-
-```js
-function update(dirty) {
-    if (dirty & NAME) {
-        h1.textContent = name;
-    }
-
-    if (dirty & COUNT) {
-        button.textContent = count;
-    }
-}
-```
-
-When:
-
-```js
-name = "Mary";
-```
-
-Only the instructions associated with `name` execute.
-
-No Virtual DOM exists.
-
-No template diff occurs.
-
-This makes Svelte 3/4 an example of:
+Svelte 3/4 uses compile-time generated update instructions.
 
 ```txt
-Component Scheduling
-+
-Binding-Level DOM Updates
-+
-Compiler-Generated Rendering
+State change
+  ↓
+Component marked dirty
+  ↓
+Generated update function runs
+  ↓
+Only affected bindings execute
+  ↓
+DOM updated directly
 ```
+
+Key property:
+
+* no Virtual DOM
+* no runtime diffing
+* updates are compiled per binding
+
+This is:
+
+> Component-scheduled, binding-updated, compiler-generated execution
 
 ---
 
 # Svelte 5
 
-Svelte 5 introduces signals through runes.
+Svelte 5 introduces a hybrid reactive system using signals (runes).
 
-Rather than organizing updates primarily around component boundaries, dependencies are tracked through reactive effects.
+Important distinction:
 
-Conceptually:
+* reactivity is signal-based at runtime
+* updates are compiled into reactive effects
 
 ```txt
-Signal Changed
-    ↓
-Reactive Effect
-    ↓
-Generated DOM Updates
+Signal change
+  ↓
+Reactive effect
+  ↓
+Generated DOM updates
 ```
 
-Unlike Solid, much of the reactive structure is still compiler-generated rather than entirely runtime-driven.
-
-This continues Svelte's philosophy of moving work from runtime into compilation.
+Unlike Solid, Svelte 5 relies more on compiler-generated effect structure rather than fully runtime-managed dependency graphs.
 
 ---
 
 # Solid
 
-Solid represents one of the clearest examples of fine-grained reactivity.
-
-```jsx
-const [count, setCount] = createSignal(0);
-```
-
-Dependencies form a runtime graph:
+Solid uses fine-grained runtime reactivity.
 
 ```txt
-count
+Signal
   ↓
-effect
+Dependency graph
   ↓
-DOM node
+Effect
+  ↓
+DOM mutation
 ```
 
-When the signal changes:
+Each reactive dependency directly tracks subscribers.
 
-```txt
-Signal Changed
-    ↓
-Effect Executes
-    ↓
-DOM Mutation
-```
+Key property:
 
-No component re-render occurs.
-
-No Virtual DOM exists.
-
-The dependency graph directly determines which effects execute.
+* no component re-render
+* updates propagate through runtime graph
 
 ---
 
 # Alpine
 
-Alpine uses Vue's reactivity system internally.
-
-Updates are generally organized around directives and effects.
+Alpine uses reactive directives with expression evaluation.
 
 ```txt
-Signal Changed
-    ↓
-Directive Effect
-    ↓
-Expression Evaluation
-    ↓
-DOM Update
+Signal change
+  ↓
+Directive re-execution
+  ↓
+Expression evaluation
+  ↓
+DOM update
 ```
 
 Alpine demonstrates another important lesson:
@@ -446,93 +336,42 @@ For most Alpine use cases this tradeoff is entirely acceptable because simplicit
 
 ---
 
-# Understanding Effect-Level Updates
+# Effect-Level Reactivity Clarification
 
-Effect-level updates are often misunderstood.
+Effect-level systems differ in implementation:
 
-Many developers assume:
+### Solid
 
-```txt
-One Binding
-=
-One Effect
-```
+* runtime dependency graph
+* minimal, direct subscriptions
 
-This is not necessarily true.
+### Svelte 5
 
-Consider:
+* compiler-generated reactive effects
+* partially pre-wired execution units
 
-```html
-<p>{name}</p>
-<span>{name}</span>
-```
+Both are effect-based, but:
 
-One framework may generate:
-
-```txt
-name
-  ↓
-effect A
-  ↓
-<p>
-```
-
-```txt
-name
-  ↓
-effect B
-  ↓
-<span>
-```
-
-Another framework may generate:
-
-```txt
-name
-  ↓
-effect A
-  ↓
-<p>
-<span>
-```
-
-Both are effect-level systems.
-
-The exact performance characteristics depend on how effects are grouped and scheduled.
+* Solid = runtime graph construction
+* Svelte 5 = compile-time effect generation + runtime signals
 
 ---
 
 # Conclusion
 
-Framework performance is not determined by a single feature.
+Framework performance is determined by the interaction of:
 
-Not by signals.
+1. Change detection model
+2. Scheduling granularity
+3. DOM update granularity
+4. DOM update strategy
 
-Not by dirty checking.
+Signals, Virtual DOM, and dirty checking are not performance features by themselves.
 
-Not by Virtual DOM.
+They are simply different mechanisms for answering:
 
-Instead, performance emerges from the interaction of four independent layers:
+> “What changed?”
 
-1. Change Detection
-2. Scheduling Granularity
-3. DOM Update Granularity
-4. DOM Update Strategy
+Actual performance depends on:
 
-Two frameworks can use identical reactivity systems while exhibiting completely different rendering performance.
-
-Likewise, two frameworks can use radically different change detection techniques yet achieve similar runtime characteristics.
-
-The question is therefore not:
-
-> Does this framework use signals?
-
-The better questions are:
-
-> How does it detect changes?
-
-> How much work gets scheduled?
-
-> How much UI work executes?
-
-> How does it determine which DOM mutations to perform?
+> “How much work runs, and how precisely does it map to DOM mutations?”
