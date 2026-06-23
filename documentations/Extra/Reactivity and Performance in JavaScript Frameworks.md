@@ -194,8 +194,17 @@ Compare values
 Apply DOM updates
 ```
 
-Important nuance:
-Angular is not purely “root-level”; it supports subtree skipping via OnPush and other optimizations.
+Angular's binding comparisons are extremely cheap. In isolation, a single binding comparison is typically cheaper than Virtual DOM reconciliation work.
+
+However, Angular must traverse views before reaching those bindings.
+
+This demonstrates an important principle:
+
+> The cost of scheduling and traversal can matter as much as the cost of change detection itself.
+
+> [!NOTE]
+> Important nuance:
+> Angular is not purely “root-level”; it supports subtree skipping via OnPush and other optimizations.
 
 ---
 
@@ -214,6 +223,10 @@ VDOM diff
   ↓
 DOM patch
 ```
+
+Vue 2's dependency tracking is more selective than Angular's root-level traversal because only dependent watchers are notified.
+
+However, rendering remains component-oriented and Virtual DOM-based.
 
 ---
 
@@ -264,7 +277,7 @@ Key property:
 
 This is:
 
-> Component-scheduled, binding-updated, compiler-generated execution
+> Component-scheduled + binding-update + compiler-generated execution
 
 ---
 
@@ -275,12 +288,12 @@ Svelte 5 introduces a hybrid reactive system using signals (runes).
 Important distinction:
 
 * reactivity is signal-based at runtime
-* updates are compiled into reactive effects
+* updates are compiled into effects
 
 ```txt
 Signal change
   ↓
-Reactive effect
+effect
   ↓
 Generated DOM updates
 ```
