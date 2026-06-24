@@ -1,86 +1,26 @@
-# Core Manager Library (`core-manager.js`)
+# Core Manager (`core-manager.js`)
 
-## Introduction
+Core Manager provides a structured way to manage reactive state by centralizing all state updates into explicitly defined actions.
 
-The core manager library provides a lightweight way to manage state using actions.
+Instead of exposing a writable signal directly, updates are performed through named actions, making state transitions easier to understand, maintain, and debug.
 
-It behaves similarly to simplified Flux/Redux-style patterns while remaining extremely small
+This pattern is conceptually similar to:
 
-Features:
-
-- Encapsulated state
-- Action-based state updates
-- Supports synchronous and asynchronous actions
-- Type-safe action inference with JSDoc templates
-- No dependencies
+* Flux Stores
+* Redux reducers and dispatchers
+* Pinia stores
+* Zustand stores with actions
 
 ---
 
-## Installation
+## Creating a Managed Value
+
+A managed value is created using `create_managed_value()`.
 
 ```js
-import { create_managed_value } from 'https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/core-manager.js';
-```
+import { create_managed_value } from "manager";
 
-or with importmaps
-
-```html
-<script type="importmap">
-    {
-        "imports": {
-            "manager": "https://cdn.jsdelivr.net/gh/icevelez/Core@master/lib/core-manager.js"
-        }
-    }
-</script>
-```
-```js
-import { create_managed_value } from 'manager';
-```
-
-> [!NOTE]
-> The import map is not restricted to the CDN version. you can easily configure it to reference a local copy or a self-hosted build
-
----
-
-## API
-
-### `create_managed_value(initialState, actions)`
-
-Creates a store object containing:
-
-- a `value` getter
-- methods defined in `actions`
-
-### Parameters
-
-#### `initialState`
-
-The initial value of the controller state.
-
-```js
-create_managed_value([], actions)
-```
-
-#### `actions`
-
-An object where each key is a function.
-
-Each action receives:
-
-1. the current state as the first parameter
-2. additional custom arguments
-
-The action must return:
-
-- the new state
-- or a `Promise` resolving to the new state
-
----
-
-## Basic Example
-
-```js
-const counter = create_managed_value(0, {
+const CounterManager = create_managed_value(0, {
     increment(value) {
         return value + 1;
     },
@@ -93,111 +33,169 @@ const counter = create_managed_value(0, {
         return value + amount;
     }
 });
+```
 
-counter.increment();
-console.log(counter.value); // 1
+The first argument is the initial state.
 
-counter.add(5);
-console.log(counter.value); // 6
+The second argument is an object containing actions responsible for updating the state.
+
+---
+
+## Using a Managed Value
+
+`create_managed_value()` returns a tuple:
+
+```js
+const [
+    counter,
+    counter_actions,
+    counter_pending,
+    counter_error
+] = CounterManager;
+```
+
+| Value               | Description                                  |
+| ------------------- | -------------------------------------------- |
+| `counter()`         | Reactive state getter                        |
+| `counter_actions`   | Object containing action methods             |
+| `counter_pending()` | Indicates whether an async action is running |
+| `counter_error()`   | Contains the most recent action error        |
+
+---
+
+## Synchronous Actions
+
+Actions receive the current state as their first argument and return the next state.
+
+```js
+counter_actions.increment();
+
+console.log(counter()); // 1
+```
+
+Actions may also accept additional parameters.
+
+```js
+counter_actions.add(5);
+
+console.log(counter()); // 6
 ```
 
 ---
 
-## Async Actions
+## Asynchronous Actions
 
-Actions may also be asynchronous.
+Actions can return a Promise.
 
 ```js
-const users = create_managed_value([], {
-    async fetchUsers(value) {
-        const response = await fetch('/api/users');
-        return response.json();
+const UserManager = create_managed_value(null, {
+    async load() {
+        return fetch("/api/user")
+            .then(response => response.json());
     }
 });
-
-await users.fetchUsers();
-console.log(users.value);
 ```
 
----
+When a Promise is returned:
 
-## Todo Example
+1. `pending()` becomes `true`
+2. The Promise is awaited
+3. The resolved value becomes the new state
+4. `pending()` becomes `false`
 
 ```js
-const todos = create_managed_value([], {
-    add_todo(value, todo) {
-        value.push({
-            todo,
-            completed: false
-        });
-
-        return value;
-    },
-
-    delete_todo(value, index) {
-        value.splice(index, 1);
-        return value;
-    },
-
-    mark_complete(value, index) {
-        value[index].completed = true;
-        return value;
-    }
-});
-
-
-todos.add_todo('Learn flux pattern');
-todos.add_todo('Build app');
-
-console.log(todos.value); // [{ todo : "Learn flux pattern", done : false }, { todo : "Build app", done : false }]
+await actions.load();
 ```
 
 ---
 
-## Internal Behavior
+## Loading State
 
-The manager instance holds the value internally using a private `Symbol`.
+The `pending()` signal can be used to display loading indicators.
 
 ```js
-const STORE_VALUE = Symbol();
-```
-
-This prevents accidental collisions with user-defined keys.
-
----
-
-## Return Type
-
-The returned object contains:
-
-```ts
-{
-    value: T,
-    ...actions
+if (pending()) {
+    console.log("Loading...");
 }
 ```
 
-Each action automatically removes the first `value` parameter from the public API.
-
-Example:
-
-```js
-add(value, amount)
-```
-
-becomes:
-
-```js
-add(amount)
+```html
+{{#if pending()}}
+    <p>Loading...</p>
+{{/if}}
 ```
 
 ---
 
-## Design Philosophy
+## Error Handling
 
-The library intentionally avoids:
+If an async action throws an error, it is stored in the error signal.
 
-- reducers
-- dispatch systems
+```js
+if (error()) {
+    console.error(error());
+}
+```
 
-The goal is simplicity and direct state mutation.
+```html
+{{#if error()}}
+    <p>{{ error().message }}</p>
+{{/if}}
+```
+
+---
+
+## Example
+
+```js
+import { create_managed_value } from "manager";
+
+export const UserManager = create_managed_value(null, {
+
+    async load() {
+        return fetch("/api/user")
+            .then(response => response.json());
+    },
+
+    clear() {
+        return null;
+    }
+});
+```
+
+```js
+const [
+    user,
+    actions,
+    pending,
+    error
+] = UserManager;
+
+await actions.load();
+
+console.log(user());
+```
+
+---
+
+## Why Use Managed Values?
+
+Managed Values help:
+
+* Centralize state mutations
+* Keep state transitions predictable
+* Encapsulate business logic
+* Handle loading and error states automatically
+* Create lightweight stores without additional boilerplate
+
+Rather than allowing any part of an application to modify state directly, updates flow through well-defined actions.
+
+```text
+Action
+   ↓
+State Update
+   ↓
+Reactive UI Update
+```
+
+This makes application behavior easier to reason about as it grows.
