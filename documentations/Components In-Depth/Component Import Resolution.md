@@ -1,4 +1,4 @@
-# Importing Components
+# Component Import Resolution
 
 Components can be composed together to build larger user interfaces. Before a component can be used inside a template, it must first be made visible to the current component.
 
