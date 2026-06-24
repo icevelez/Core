@@ -1,4 +1,4 @@
-# How does JavaScript Imports Work in a Core Component?
+# JavaScript Imports Resolution
 
 ## Overview
 
