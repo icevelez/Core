@@ -562,7 +562,7 @@ export async function sfc(url, template_processor) {
     const script = scriptEl?.innerHTML || "";
     const template = text.replace(scriptEl?.outerHTML, "");
 
-    const href = window.location.href.split("#")[0] + url.substring(0, url.lastIndexOf("/") + 1);
+    const href = window.location.origin + window.location.pathname + url.substring(0, url.lastIndexOf("/") + 1);
     let code = `//# sourceURL=${url.split("/").at(-1)}${script || "\n\texport default function() {}"}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const components_id = `component-${make_id(6)}`;
@@ -572,11 +572,12 @@ export async function sfc(url, template_processor) {
     const user_code = extract_default_function(code);
     code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE - CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
+    const has_styles = render_code_string.includes("$STYLE.innerHTML");
     const template_initialization_code = `
     export const $COMPONENT_ID = "${components_id}";
     const $CORE = window.__core__;\n\t${
     CORE.fragment_cache.map((frag, i) => {
-        inject_scope_id_to_children(frag, css_scope_id);
+        if (has_styles) inject_scope_id_to_children(frag, css_scope_id);
         const template = document.createElement("template");
         template.content.append(frag);
         return `const $FRAGMENT_CACHE_${i} = $CORE.html(${JSON.stringify(template.innerHTML)})`;
@@ -651,9 +652,9 @@ ${
             ${instruction.text_funcs.map((func) => {
                 return `$CORE.set_text($CHILD${func.child_index}, ${func.expr});`
             }).join("\n\t\t\t")}${(instruction.attr_funcs.length > 0 ? "\n\t\t\t" : "") +
-                instruction.attr_funcs.map((func, i) => {
-                    return `$CORE.set_attr($CHILD${func.child_index}, ${func.expr}, "${func.property}");`
-                }).join("\n\t\t")}
+            instruction.attr_funcs.map((func, i) => {
+                return `$CORE.set_attr($CHILD${func.child_index}, ${func.expr}, "${func.property}");`
+            }).join("\n\t\t\t")}
         })` : ''
 }${
         (instruction.events.length > 0 ? '\n\n\t\t// EVENT DELEGATION\n\t\t' : '') +
@@ -682,13 +683,15 @@ ${
                 const component_slot_fn_code = CORE.block_cache.get(block.slot_id);
                 const props = Object.entries(component?.props || []);
                 return `const $COMPONENT${i} = ${block.component ? `${block.component}` : `$COMPONENTS.${block.component_tag}`};
-        const $COMPONENT${i}_PROPS = {${props.map((p) => `get ${p[0]}() { return (${p[1]}) }`).join(",") }${ (props.length > 0 && component.dynamic_props.length > 0) ? ',' : ''} ${component.dynamic_props.map((p) => `get ${p.key}(){ return (${p.expr}) }`).join(", ")}};
+        const $COMPONENT${i}_PROPS = {${props.map((p) => `get ${p[0]}() { return (${JSON.stringify(p[1])}) }`).join(",") }${ (props.length > 0 && component.dynamic_props.length > 0) ? ',' : ''} ${component.dynamic_props.map((p) => `get ${p.key}(){ return (${p.expr}) }`).join(", ")}};
         if (!$COMPONENT${i}) throw new Error('component "<${block.component || block.component_tag}>" not found');
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, $COMPONENT${i}, $COMPONENT${i}_PROPS, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
 }${
         (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
             instruction.use_directives.map((directive, i) => {
-                return `\t$DISPOSE_FNS[${++dispose_fn_i}] = ${directive.func_name}($CHILD${directive.child_index}, (${directive.expr})) || (() => {})`;
+                return `\tif (typeof ${directive.func_name} !== "function") throw new Error('\"${directive.func_name}\" is not a function')
+        const $DIRECTIVE_DISPOSE_${i} = ${directive.func_name}($CHILD${directive.child_index}, (${directive.expr || 'undefined'}))
+        $DISPOSE_FNS[${++dispose_fn_i}] = typeof $DIRECTIVE_DISPOSE_${i} === "function" ? $DIRECTIVE_DISPOSE_${i} : (() => {})`;
             }).join("\n\t")
 }${
         instruction.slot_child_index > -1 ? `\n\n\t\t// COMPONENT SLOT like <CoreSlot/>
