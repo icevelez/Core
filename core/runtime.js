@@ -1087,6 +1087,31 @@ export function memo(fn) {
     return value;
 }
 
+/**
+ * @template {any} T
+ * @param {T} initial_value
+ * @param {(value:T) => (Promise<T> | T)} refine_fn
+ */
+export function refine_signal(initial_value, refine_fn) {
+    const [value, set_value] = signal(null);
+    const [error, set_error] = signal(null);
+
+    const set_refined_value = (new_value) => {
+        try {
+            set_error(null);
+            const result = refine_fn(typeof new_value === "function" ? new_value(value()) : new_value);
+            if (result instanceof Promise) return result.then(v => set_value(v)).catch(e => set_error(e));
+            set_value(result);
+        } catch (error) {
+            set_error(error);
+        }
+    }
+
+    set_refined_value(initial_value);
+
+    return [value, error, set_refined_value];
+}
+
 const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
 
 const IS_PROXY = Symbol("proxy");

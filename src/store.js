@@ -12,7 +12,7 @@ const todo_arr = [
     }
 ];
 
-export const todos = create_managed_value(todo_arr, {
+export const TodoStore = create_managed_value(todo_arr, {
     add_todo: (value, todo) => {
         value.push({ todo, done: false });
         return value;
