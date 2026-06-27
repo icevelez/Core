@@ -19,6 +19,7 @@ const CORE = {
     PRP_STATE: Symbol(),
     MOUNT_FNS: Symbol(),
     DESTROY_FNS: Symbol(),
+    on_mount,
     run_mount_fns,
     run_destroy_fns,
     effect,
@@ -604,7 +605,7 @@ export async function sfc(url, template_processor) {
  * @param {DocumentFragment} fragment
  * @param {{ css_scope_id?: string, components_id?: number, include_lifecycle: boolean, include_context : boolean }} options
  */
-export function create_render_code_string(fragment, options) {
+export function create_render_code_string(fragment, options = { include_context : false, include_lifecycle : true }) {
     if (typeof fragment === "string") {
         const templateEl = document.createElement("template");
         templateEl.innerHTML = fragment;
@@ -688,11 +689,10 @@ ${
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, $COMPONENT${i}, $COMPONENT${i}_PROPS, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
 }${
         (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
-            instruction.use_directives.map((directive, i) => {
-                return `\tif (typeof ${directive.func_name} !== "function") throw new Error('\"${directive.func_name}\" is not a function')
-        const $DIRECTIVE_DISPOSE_${i} = ${directive.func_name}($CHILD${directive.child_index}, (${directive.expr || 'undefined'}))
-        $DISPOSE_FNS[${++dispose_fn_i}] = typeof $DIRECTIVE_DISPOSE_${i} === "function" ? $DIRECTIVE_DISPOSE_${i} : (() => {})`;
-            }).join("\n\t")
+        instruction.use_directives.map((directive, i) => {
+            return `\tif (typeof ${directive.func_name} !== "function") throw new Error('\"${directive.func_name}\" is not a function')
+        $CORE.on_mount(() => ${directive.func_name}($CHILD${directive.child_index}, (${directive.expr || 'undefined'})))`;
+        }).join("\n\t")
 }${
         instruction.slot_child_index > -1 ? `\n\n\t\t// COMPONENT SLOT like <CoreSlot/>
         if ($SLOT_FN) {
@@ -874,14 +874,26 @@ export function mount(app, target) {
 
 function run_mount_fns() {
     for (const fn of current_context[CORE.MOUNT_FNS]) {
-        const destroy_fn = fn();
-        if (typeof destroy_fn === "function") current_context[CORE.DESTROY_FNS].push(destroy_fn);
+        try {
+            const destroy_fn = fn();
+            if (typeof destroy_fn === "function") current_context[CORE.DESTROY_FNS].push(destroy_fn);
+        } catch (error) {
+            console.error(error);
+        }
     }
+
     current_context[CORE.MOUNT_FNS].length = 0;
 }
 
 function run_destroy_fns() {
-    for (const fn of current_context[CORE.DESTROY_FNS]) fn();
+    for (const fn of current_context[CORE.DESTROY_FNS]) {
+        try {
+            fn();
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
     current_context[CORE.DESTROY_FNS].length = 0;
 }
 
