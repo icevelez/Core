@@ -1089,27 +1089,77 @@ export function memo(fn) {
 
 /**
  * @template {any} T
- * @param {T} initial_value
- * @param {(value:T) => (Promise<T> | T)} refine_fn
+ * @template {Record<string, (state:T, ...args:any[]) => (T | Promise<T>)> | (value:T) => (T | Promise<T>)} A
+ *
+ * @param {T} initial_value Initial state value.
+ * @param {A} actions_or_refine_fn Object containing action functions or refine function that either or both validate and transform the data
+ *
+ * @returns {[
+ *     () => T,
+ *     () => Error | null,
+ *     () => boolean,
+ *     ({
+ *         [K in keyof A]:
+ *             (...args:
+ *                 Parameters<A[K]> extends [any, ...infer R]
+ *                     ? R
+ *                     : never
+ *             ) => (ReturnType<A[K]> extends Promise<any> ? Promise<void> : void)
+ *     }) | (value:T) => void),
+ * ]}
+ *
+ * Returns:
+ * 1. State getter
+ * 2. Pending getter
+ * 3. Error getter
+ * 4. Bound actions or State setter
  */
-export function refine_signal(initial_value, refine_fn) {
-    const [value, set_value] = signal(null);
+export function managed_signal(initial_value, actions_or_refine_fn) {
+    const [value, set_value] = signal(initial_value);
     const [error, set_error] = signal(null);
+    const [pending, set_pending] = signal(false);
 
-    const set_refined_value = (new_value) => {
+    if (typeof actions_or_refine_fn === "function") {
+        const refine_fn = actions_or_refine_fn;
+        const set_refine_value = (new_value) => {
+            try {
+                set_error(null);
+                const result = refine_fn(typeof new_value === "function" ? new_value(value()) : new_value);
+                if (result instanceof Promise) return result.then(v => set_value(v)).catch(e => set_error(e));
+                set_value(result);
+            } catch (error) {
+                set_error(error);
+            }
+        }
+
+        return [value, error, pending, set_refine_value];
+    }
+
+    const actions = actions_or_refine_fn;
+    const action_keys = Object.keys(actions);
+    const defined_actions = Object.create(actions);
+
+    for (const key of action_keys) defined_actions[key] = function (...args) {
         try {
-            set_error(null);
-            const result = refine_fn(typeof new_value === "function" ? new_value(value()) : new_value);
-            if (result instanceof Promise) return result.then(v => set_value(v)).catch(e => set_error(e));
-            set_value(result);
+            const result = actions[key](value(), ...args);
+            if (!(result instanceof Promise)) return set_value(result);
+            set_pending(true);
+            result
+                .then((value) => {
+                    set_value(value);
+                    set_error(null);
+                    set_pending(false);
+                })
+                .catch(error => {
+                    set_error(error);
+                    set_pending(false);
+                });
         } catch (error) {
             set_error(error);
         }
     }
 
-    set_refined_value(initial_value);
-
-    return [value, error, set_refined_value];
+    return [value, error, pending, defined_actions];
 }
 
 const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","sort","reverse","fill","copyWithin"]);
