@@ -1096,7 +1096,7 @@ export function memo(fn) {
  *
  * @returns {[
  *     () => T,
- *     () => Error | null,
+ *     () => any,
  *     () => boolean,
  *     (A instanceof Function ? (value:T) => void : {
  *         [K in keyof A]: (...args:Parameters<A[K]> extends [any, ...infer R] ? R : never) => (ReturnType<A[K]> extends Promise<any> ? Promise<void> : void)
