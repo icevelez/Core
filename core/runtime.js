@@ -1098,14 +1098,9 @@ export function memo(fn) {
  *     () => T,
  *     () => Error | null,
  *     () => boolean,
- *     ({
- *         [K in keyof A]:
- *             (...args:
- *                 Parameters<A[K]> extends [any, ...infer R]
- *                     ? R
- *                     : never
- *             ) => (ReturnType<A[K]> extends Promise<any> ? Promise<void> : void)
- *     }) | (value:T) => void),
+ *     (A instanceof Function ? (value:T) => void : {
+ *         [K in keyof A]: (...args:Parameters<A[K]> extends [any, ...infer R] ? R : never) => (ReturnType<A[K]> extends Promise<any> ? Promise<void> : void)
+ *     }),
  * ]}
  *
  * Returns:
