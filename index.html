@@ -16,13 +16,12 @@
           }
         </script>
         <script type="module" defer>
-            import { component } from "core/handlebar";
-            import { mount } from "core";
-            import { start_core_assist } from "core-assist";
+            import { parser } from "core/handlebar";
+            import { start_core_runtime, mount } from "core";
 
-            await start_core_assist();
+            await start_core_runtime(parser);
 
-            const App = await component("./src/App.html");
+            const App = await import("./src/App.html");
             mount(App, "#app");
         </script>
     </body>

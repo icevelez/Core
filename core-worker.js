@@ -1,59 +1,65 @@
-const localcache = new Map();
+const core_component_cache = new Map();
+const promise_map = new Map();
 const broadcast_channel = new BroadcastChannel("CORE_ASSIST");
 
+self.addEventListener('install', self.skipWaiting);
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", (event) => {
-    if (event.request.destination !== 'script') return;
-    const cache = handle_component_request(event.request);
-    if (!cache) return;
-    event.respondWith(cache);
+    const url = event.request.url;
+    const destination = event.request.destination;
+
+    if (destination === 'script' && url.split(".").at(-1) === "html") {
+        event.respondWith(core_intercept(url));
+        return;
+    }
 });
+
+const defaut_url_option = {
+    headers: {
+        "Content-Type": "application/javascript"
+    }
+};
+
+async function core_intercept(url) {
+    const cache = core_component_cache.get(url);
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return response;
+        if (response.status === 304 && cache && cache.module) return new Response(cache.module, { ...defaut_url_option });
+
+        const text = await response.text();
+        if (cache && cache.text === text) return new Response(cache.module, { ...defaut_url_option });
+
+        const promise_id = Math.random().toString(16).slice(2);
+        broadcast_channel.postMessage({ type: "COMPILE_CORE_COMPONENT", promise_id, text });
+        const module = await new Promise((resolve) => promise_map.set(promise_id, resolve));
+
+        core_component_cache.set(url, { text, module });
+
+        return new Response(module, { ...defaut_url_option });
+    } catch (error) {
+        console.error(error);
+        if (cache && cache.module) {
+            console.info("[Core Worker]: Something went wrong. Falling back to cached modules");
+            return new Response(cache.module, { ...defaut_url_option });
+        }
+    }
+}
 
 broadcast_channel.addEventListener("message", async (event) => {
     const data = event.data;
     const type = data.type;
 
-    if (type === "CACHE_MODULE") {
-        localcache.set(data.url, { code: data.code, etag: data.etag, file : data.file });
-        return;
-    }
+    if (type === "RESOLVE_COMPILE_CORE_COMPONENT") {
+        const { promise_id, module } = data;
+        const resolve = promise_map.get(promise_id);
 
-    if (type === "HAS_MODULE") {
-        const cache = localcache.get(data.url);
-        broadcast_channel.postMessage({ type : "RESOLVE_HAS_MODULE",  id: data.id, url: data.url, etag: cache?.etag, file: cache?.file, has_cache : Boolean(cache) });
-        return;
-    }
-
-    if (type === "VALIDATE_MODULE") {
-        try {
-            const cache = localcache.get(data.url);
-            const response = await fetch(data.url, { headers: { "If-None-Match": cache.etag || "", "X-Core-Cache-Validation": "true" } });
-
-            if (cache.etag && response.status === 304) return;
-            if (!cache.etag && response.status === 200) {
-                // console.warn("[core-assist]: no etag found. matching response body isntead");
-                if (!cache.file) return // console.error("[core-assist]: no component file found. skipping cache invalidation");
-                const text = await response.text();
-                if (text === cache.file) return;
-                // .error("[core-assist]: component file does not match server response. Invalidating module cache");
-            } else {
-                // console.error("[core-assist]: etag mismatch. Invalidating module cache");
-            }
-        } catch (error) {
-            console.log(error)
+        if (!resolve) {
+            console.error("[Core Worker]: Broadcast Message to resovle a core component has no resolve function");
+            return;
         }
 
-        localcache.delete(data.url);
+        resolve(module);
         return;
     }
 });
-
-function handle_component_request(request) {
-    const metadata = localcache.get(request.url);
-    if (!metadata) return;
-
-    return new Response(metadata.code, {
-        headers: {
-            "Content-Type": "application/javascript"
-        }
-    });
-}

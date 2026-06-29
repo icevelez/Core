@@ -1,4 +1,4 @@
-/** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Instruction */
+/** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], component_blocks : { child_index : number, component_tagname : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Instruction */
 
 /** @typedef {(props:Record<string, any>) => (() => void)} CoreComponent the function that wraps both the data and render function */
 
@@ -84,7 +84,7 @@ const CORE = {
      * @returns {() => void} remove event
      */
     delegate: function (event_name, node, func) {
-        if (typeof func !== "function") throw new Error("func is not a function");
+        if (typeof func !== "function") throw new Error(`[Core]: Runtime error! Delegated event "on:${event_name}" is not a function`);
         let event_node_weakmap = CORE.delegated_events.get(event_name);
 
         if (!event_node_weakmap) {
@@ -114,7 +114,7 @@ const CORE = {
      * @param {Node} endNode
      */
     remove_nodes: function (parentNode, startNode, endNode) {
-        if (!parentNode) throw new Error("parent node not found");
+        if (!parentNode) throw new Error("[Core]: Clean up error! Parent node not found");
 
         if (startNode === endNode) {
             parentNode.removeChild(startNode);
@@ -304,7 +304,7 @@ const CORE = {
                 CORE.set_param_args(fragment);
 
                 if (error && catch_fn) dispose_fn = catch_fn(error);
-                else if (error) throw new Error(error);
+                else if (error) console.error(error);
                 else dispose_fn = then_fn(value);
 
                 set_new_context(old_context);
@@ -407,13 +407,11 @@ function discover_node_instruction(node, node_index = [], instruction = { childr
     const is_component_node = isComponentNode(node);
     const is_core_component_node = isCoreComponentNode(node);
     if (is_component_node || is_core_component_node) {
-        const component = node.dataset.component || null;
-        const component_tag = node.dataset.componentTag || null;
-        if (is_core_component_node && !component) throw new Error("no default component found");
-        if (is_component_node && !component_tag) throw new Error("component not found");
+        const component_tagname = node.dataset.componentTagname || null;
+        if (!component_tagname) throw new Error("[Core]: Compilation error! no component tagname found");
         replace_node_with_anchor(node, "component-block");
         instruction.children.push(node_index);
-        instruction.component_blocks.push({ child_index: instruction.children.length - 1, component, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
+        instruction.component_blocks.push({ child_index: instruction.children.length - 1, component_tagname, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
         return instruction;
     }
 
@@ -485,12 +483,14 @@ function remove_whitespace_nodes(root) {
     }
 }
 
+const component_placeholder = (t, p, s) => `<template data-block="component" data-component-tagname="${t}" data-block-props-id="${p}" ${s ? `data-slot-id="${s}"` : ''}></template>`;
+
 /**
 * Replaces all custom HTML Tags with a placeholder element to be processed as components
 * @param {string} template
 * @param {Function} template_processor
 */
-export function process_components(template, template_processor) {
+export function process_components(template, template_parser) {
     return template.replace(/<([A-Z][A-Za-z0-9]*)\s*((?:[^>"']|"[^"]*"|'[^']*')*?)\s*(\/?)>(?:([\s\S]*?)<\/\1>)?/g, (match, tag, attrStr, _, inner_content) => {
         const props = {}, dynamic_props = [], props_id = `props-${make_id(8)}`, slot_id = `slot-${make_id(8)}`;
 
@@ -502,17 +502,17 @@ export function process_components(template, template_processor) {
             }
         })
 
-        if (inner_content) add_block_to_cache(slot_id, create_render_code_string(template_processor(inner_content)));
+        if (inner_content) add_block_to_cache(slot_id, create_render_code(template_parser(inner_content)));
         add_block_to_cache(props_id, { props, dynamic_props });
 
         if (match.startsWith("<CoreSlot")) return `<template data-block="core-slot"></template>`;
         if (match.startsWith("<CoreComponent")) {
             const _default = props.default;
             delete props.default;
-            return `<template data-block="core-component" data-block-props-id="${props_id}" data-component="${_default}" ${slot_id ? `data-slot-id="${slot_id}"` : ''}></template>`;
+            return component_placeholder(_default, props_id, slot_id);
         }
 
-        return `<template data-block="component" data-component-tag="${tag}" data-block-props-id="${props_id}" ${slot_id ? `data-slot-id="${slot_id}"` : ''}></template>`;
+        return component_placeholder(tag, props_id, slot_id);
     })
 }
 
@@ -541,41 +541,61 @@ function extract_default_function(source) {
     return null;
 }
 
+const broadcast_channel = new BroadcastChannel("CORE_ASSIST");
+
 /**
- * @param {string} url
- * @param {DocumentFragment} template_processor
+ * @param {(source:string) => string} template_parser
  */
-export async function sfc(url, template_processor) {
-    const core_assist = window.__core_assist__;
-    if (core_assist && await core_assist.has_cache(url)) return core_assist.use_cache(url);
+export async function start_core_runtime(template_parser) {
+    if (!navigator.serviceWorker) throw new Error("[Core]: Initialization error! Service Worker not found");
 
-    const response = await fetch(url);
-    const text = await response.text();
-    if (!response.ok) throw new Error(text);
+    const service_worker = await navigator.serviceWorker.register("./core-worker.js", { type: "module", scope : "/" });
 
-    const response_url = response.url;
-    const etag = response.headers.get("etag") || "";
+    await navigator.serviceWorker.ready;
 
+    if (service_worker.active.state !== "activated") await new Promise(resolve => {
+        service_worker.active.addEventListener('statechange', () => {
+            if (service_worker.active.state === "activated") resolve();
+        }, { once : true });
+    });
+
+    broadcast_channel.addEventListener("message", (event) => {
+        const data = event.data;
+        const type = data.type;
+
+        if (type === "COMPILE_CORE_COMPONENT") {
+            const { promise_id, text } = data;
+            const module = compile_core_component(text, template_parser);
+            broadcast_channel.postMessage({ type: "RESOLVE_COMPILE_CORE_COMPONENT", promise_id, module });
+            return;
+        }
+    })
+}
+
+/**
+ * @param {string} text
+ * @param {(source:string) => string} template_parser
+ */
+function compile_core_component(text, template_parser) {
     const base = document.createElement("template");
     base.innerHTML = text;
 
     const scriptEl = base.content.querySelector("script");
     const script = scriptEl?.innerHTML || "";
+    const script_bool = Boolean(script);
     const template = text.replace(scriptEl?.outerHTML, "");
 
-    const href = window.location.origin + window.location.pathname + url.substring(0, url.lastIndexOf("/") + 1);
-    let code = `//# sourceURL=${url.split("/").at(-1)}${script || "\n\texport default function() {}"}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
+    let code = `${script || "\n\texport default function() {}"}`;
 
-    const components_id = `component-${make_id(6)}`;
     const css_scope_id = `core-${make_id(6).toLowerCase()}`;
-
-    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { css_scope_id, components_id, include_context : Boolean(script), include_lifecycle : Boolean(script) });
+    const render_code = create_render_code(template_parser(process_components(template, template_parser)), { css_scope_id, include_context : script_bool, include_lifecycle : script_bool });
     const user_code = extract_default_function(code);
-    code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE - CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
+    if (!user_code) throw new Error(`[Core]: Compilation error! Component <${component_name}> is missing a default exported function`);
 
-    const has_styles = render_code_string.includes("$STYLE.innerHTML");
+    code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE - CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code}`);
+
+    const has_styles = render_code.includes("$STYLE.innerHTML");
     const template_initialization_code = `
-    export const $COMPONENT_ID = "${components_id}";
     const $CORE = window.__core__;\n\t${
     CORE.fragment_cache.map((frag, i) => {
         if (has_styles) inject_scope_id_to_children(frag, css_scope_id);
@@ -584,28 +604,17 @@ export async function sfc(url, template_processor) {
         return `const $FRAGMENT_CACHE_${i} = $CORE.html(${JSON.stringify(template.innerHTML)})`;
     }).join("\n\t")}`;
 
-    code = `${code}${template_initialization_code}`;
-
     CORE.fragment_cache.length = 0;
 
-    if (core_assist) core_assist.set_cache(response_url, etag, code, text);
-
-    const script_blob = new Blob([code], { type: 'text/javascript' });
-    const script_url = URL.createObjectURL(script_blob);
-
-    const { default: render_function, ...component_promises } = await import(script_url);
-
-    await CORE.resolve_components(component_promises, components_id);
-
-    return render_function
+    return `${code}${template_initialization_code}`;
 }
 
 /**
  *
  * @param {DocumentFragment} fragment
- * @param {{ css_scope_id?: string, components_id?: number, include_lifecycle: boolean, include_context : boolean }} options
+ * @param {{ css_scope_id?: string, include_lifecycle: boolean, include_context : boolean }} options
  */
-export function create_render_code_string(fragment, options = { include_context : false, include_lifecycle : true }) {
+export function create_render_code(fragment, options = { include_context : false, include_lifecycle : true }) {
     if (typeof fragment === "string") {
         const templateEl = document.createElement("template");
         templateEl.innerHTML = fragment;
@@ -645,8 +654,6 @@ ${
 
         const $DISPOSE_FNS = [];
 ${
-    (options?.components_id ? `\n\t\tconst $COMPONENTS = $CORE.block_cache.get("${options.components_id}")` : '')
-}${
         (instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `
         // TEXT & ATTRIBUTES
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.effect(() => {
@@ -666,10 +673,10 @@ ${
         (instruction.blocks.length > 0 ? '\n\n\t\t// IF/EACH/AWAIT BLOCKS\n\t\t' : '') +
         instruction.blocks.sort((a,b) => a.type.localeCompare(b.type)).map((block) => {
             const block_data = CORE.block_cache.get(block.id);
-            const each_fn = (fn) => `(${block_data.key}${block_data.index_key ? `, ${block_data.index_key}` : ''}) => {${fn.replaceAll("\n", "\n\t")}}`;
-            const await_fn = (fn, key = "") => fn ? `(${key}) => {${fn.replaceAll("\n", "\n\t")}}` : 'null';
+            const each_fn = (fn) => `(${block_data.key}${block_data.index_key ? `, ${block_data.index_key}` : ''}) => {${fn}}`;
+            const await_fn = (fn, key = "") => fn ? `(${key}) => {${fn}}` : 'null';
             if (block.type === "if") {
-                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.if($CHILD${block.child_index}, [\n\t\t\t${block_data.exprs.map((expr) => `(() => ${expr})`).join(",\n\t\t\t")}\n\t\t], [\n\t\t${block_data.fns.map((fn) => `() => {${fn.replaceAll("\n", "\n\t")}}`).join(",\n\t\t")}\n\t\t]);`
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.if($CHILD${block.child_index}, [\n\t\t\t${block_data.exprs.map((expr) => `(() => ${expr})`).join(",\n\t\t\t")}\n\t\t], [\n\t\t${block_data.fns.map((fn) => `() => {${fn}}`).join(",\n\t\t")}\n\t\t]);`
             } else if (block.type === "each") {
                 return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.each($CHILD${block.child_index}, (() => ${block_data.expr}), ${each_fn(block_data.fn)}${block_data.else_fn ? `, ${each_fn(block_data.else_fn)}` : ''})`;
             } else if (block.type === "await") {
@@ -683,14 +690,13 @@ ${
                 const component = CORE.block_cache.get(block.props_id);
                 const component_slot_fn_code = CORE.block_cache.get(block.slot_id);
                 const props = Object.entries(component?.props || []);
-                return `const $COMPONENT${i} = ${block.component ? `${block.component}` : `$COMPONENTS.${block.component_tag}`};
-        const $COMPONENT${i}_PROPS = {${props.map((p) => `get ${p[0]}() { return (${JSON.stringify(p[1])}) }`).join(",") }${ (props.length > 0 && component.dynamic_props.length > 0) ? ',' : ''} ${component.dynamic_props.map((p) => `get ${p.key}(){ return (${p.expr}) }`).join(", ")}};
-        if (!$COMPONENT${i}) throw new Error('component "<${block.component || block.component_tag}>" not found');
-        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, $COMPONENT${i}, $COMPONENT${i}_PROPS, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
+                return `const $COMPONENT${i}_PROPS = {${props.map((p) => `get ${p[0]}() { return (${JSON.stringify(p[1])}) }`).join(",") }${ (props.length > 0 && component.dynamic_props.length > 0) ? ',' : ''} ${component.dynamic_props.map((p) => `get ${p.key}(){ return (${p.expr}) }`).join(", ")}};
+        if (!${block.component_tagname}) throw new Error('[Core]: Runtime error! Component "<${block.component_tagname}>" not found');
+        $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, ${block.component_tagname}, $COMPONENT${i}_PROPS, () => {${component_slot_fn_code || ""}});`}).join("\n\n\t")
 }${
         (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
         instruction.use_directives.map((directive, i) => {
-            return `\tif (typeof ${directive.func_name} !== "function") throw new Error('\"${directive.func_name}\" is not a function')
+            return `\tif (typeof ${directive.func_name} !== "function") throw new Error('[Core]: Runtime error! Element directive \"${directive.func_name}\" is not a function')
         $CORE.on_mount(() => ${directive.func_name}($CHILD${directive.child_index}, (${directive.expr || 'undefined'})))`;
         }).join("\n\t")
 }${
@@ -862,6 +868,8 @@ export function get_context(key) {
  * @returns {() => void} dispose function
  */
 export function mount(app, target) {
+    if (app.default) app = app.default;
+
     const context = create_new_context();
     context[CORE.MOUNT_FNS] = [];
     context[CORE.DESTROY_FNS] = [];
@@ -943,7 +951,7 @@ function trigger(dep) {
             for (const fn of effect_queue) fn();
             for (const fn of ticks) fn();
         } catch (error) {
-            console.error("effect microtask execution error\n", effect_queue, error)
+            console.error("[Core]: Effect microtask execution error\n", effect_queue, error)
         } finally {
             prio_effect_queue.clear();
             effect_queue.clear();
@@ -977,7 +985,7 @@ export function next_tick() {
  * @param {{ track_inner_effect : boolean, is_priority : boolean }} options
  */
 export function effect(fn, options = { track_inner_effect : true, is_priority : false }) {
-    if (typeof fn !== "function") throw new Error("Effect callback is not a function");
+    if (typeof fn !== "function") throw new Error("[Core]: Runtime error! Effect callback is not a function");
 
     let dispose_fn = null;
     let active = true;      // flag to prevent effect re-run if already dispose
