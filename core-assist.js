@@ -8,18 +8,16 @@ const CORE_ASSIST = {
     /** @type {ServiceWorkerRegistration | null} */
     service_worker: null,
     broadcast_channel: new BroadcastChannel("CORE_ASSIST"),
-    set_cache: function (url, etag, code, file) {
-        CORE_ASSIST.broadcast_channel.postMessage({ type: "CACHE_MODULE", code, file, url, etag });
+    set_cache: function (url, code) {
+        CORE_ASSIST.broadcast_channel.postMessage({ type: "CACHE_MODULE", code, url });
     },
-    has_cache: async function (url) {
-        const new_url = new URL(`${ url.startsWith("http:") || url.startsWith("https:") || url.startsWith("data:") ? url : `${window.location.origin}/${url}` }`);
+    has_cache: async function (url, text) {
         const id = Math.random().toString(16).substring(4);
-        CORE_ASSIST.broadcast_channel.postMessage({ type: "HAS_MODULE", id, url : new_url.href });
+        CORE_ASSIST.broadcast_channel.postMessage({ type: "HAS_MODULE", id, url, text });
         return new Promise((resolve) => { resolve_map.set(id, resolve) });
     },
     use_cache: async function (url) {
-        const new_url = new URL(`${ url.startsWith("http:") || url.startsWith("https:") || url.startsWith("data:") ? url : `${window.location.origin}/${url}` }`);
-        const { $COMPONENT_ID, default: render_function, ...component_promises } = await import(new_url);
+        const { $COMPONENT_ID, default: render_function, ...component_promises } = await import(url);
         await CORE.resolve_components(component_promises, $COMPONENT_ID);
         return render_function;
     },
@@ -37,8 +35,7 @@ export async function start_core_assist() {
 
         if (type === "RESOLVE_HAS_MODULE") {
             const resolve = resolve_map.get(data.id);
-            if (!resolve) return;
-            if (data.has_cache) CORE_ASSIST.broadcast_channel.postMessage({ type: "VALIDATE_MODULE", url : data.url });
+            if (!resolve) return console.warn(`[Core Assist] Broadcast message "RESOLVE_HAS_MODULE" was triggered but is missing a promise resolver`);
             resolve(data.has_cache);
             resolve_map.delete(data.id);
             return;

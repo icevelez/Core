@@ -540,15 +540,13 @@ function extract_default_function(source) {
  * @param {DocumentFragment} template_processor
  */
 export async function sfc(url, template_processor) {
-    const core_assist = window.__core_assist__;
-    if (core_assist && await core_assist.has_cache(url)) return core_assist.use_cache(url);
-
     const response = await fetch(url);
-    const text = await response.text();
-    if (!response.ok) throw new Error(`[Core]: Loading component error! network request not ok.\n\n${text}`);
-
     const response_url = response.url;
-    const etag = response.headers.get("etag") || "";
+    const text = await response.text();
+    if (!response.ok) throw new Error(`[Core]: Loading component error! Network request not ok.\n\n${text}`);
+
+    const core_assist = window.__core_assist__;
+    if (core_assist && await core_assist.has_cache(url, text)) return core_assist.use_cache(response_url);
 
     const base = document.createElement("template");
     base.innerHTML = text;
@@ -582,11 +580,10 @@ export async function sfc(url, template_processor) {
 
     CORE.fragment_cache.length = 0;
 
-    if (core_assist) core_assist.set_cache(response_url, etag, code, text);
+    if (core_assist) core_assist.set_cache(response_url, code);
 
     const script_blob = new Blob([code], { type: 'text/javascript' });
     const script_url = URL.createObjectURL(script_blob);
-
     const { default: render_function, ...component_promises } = await import(script_url);
 
     await CORE.resolve_components(component_promises, components_id);

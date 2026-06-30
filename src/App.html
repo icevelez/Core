@@ -32,7 +32,7 @@
 {{:else if Router.match("/example").is_match}}
     <Example/>
 {{:else}}
-    <button on:click="() => setShow(!show())">Show Slow Condition</button>
+    <button on:click="() => setShow(!show())">Toggle Show Condition</button>
     <button use:myaction="'Hello'" on:click="() => setCount(count()+1)">Count: {{ count() }} {{ double() }}</button>
     <input use:bind="['value', name, setName]">
     <h1>Hello {{ name() }}</h1>
