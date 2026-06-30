@@ -31,8 +31,8 @@ const CORE = {
     fragment_cache: [],
     /** @type {Map<string, BlockCache[]>} */
     block_cache: new Map(),
-    /** @type {Map<string, WeakMap<Node, Set<Function>>>} */
-    delegated_events: new Map(),
+    /** @type {Map<string, Boolean>} */
+    delegated_events: new Set(),
     /**
      * Converts string to Document Fragment
      * @param {string} html_string
@@ -86,17 +86,15 @@ const CORE = {
      * @returns {() => void} remove event
      */
     delegate: function (event_name, node, func) {
-        if (typeof func !== "function") throw new Error("func is not a function");
-        let has_event = CORE.delegated_events.get(event_name);
+        if (typeof func !== "function") throw new Error("[Core] Event delegation error! function is not a function");
 
-        if (!has_event) {
-            CORE.delegated_events.set(event_name, true);
+        if (!CORE.delegated_events.has(event_name)) {
+            CORE.delegated_events.add(event_name);
             window.addEventListener(event_name, (e) => match_delegated_node(e, e.target, event_name));
         }
 
-        if (!node.__events) node.__events = [];
+        if (!node.__events) node.__events = { [event_name] : [] };
         if (!node.__events[event_name]) node.__events[event_name] = [];
-
         node.__events[event_name].push(func);
     },
     /**
@@ -104,7 +102,7 @@ const CORE = {
      * @param {Node} endNode
      */
     remove_nodes: function (parentNode, startNode, endNode) {
-        if (!parentNode) throw new Error("parent node not found");
+        if (!parentNode) throw new Error("[Core] Clean up error! Parent node not found");
 
         if (startNode === endNode) {
             parentNode.removeChild(startNode);
@@ -294,7 +292,7 @@ const CORE = {
                 CORE.set_param_args(fragment);
 
                 if (error && catch_fn) dispose_fn = catch_fn(error);
-                else if (error) throw new Error(error);
+                else if (error) console.error(error)
                 else dispose_fn = then_fn(value);
 
                 set_new_context(old_context);
@@ -399,8 +397,8 @@ function discover_node_instruction(node, node_index = [], instruction = { childr
     if (is_component_node || is_core_component_node) {
         const component = node.dataset.component || null;
         const component_tag = node.dataset.componentTag || null;
-        if (is_core_component_node && !component) throw new Error("no default component found");
-        if (is_component_node && !component_tag) throw new Error("component not found");
+        if (is_core_component_node && !component) throw new Error("[Core] Node processing error! No default component found");
+        if (is_component_node && !component_tag) throw new Error("[Core] Node processing error!component not found");
         replace_node_with_anchor(node, "component-block");
         instruction.children.push(node_index);
         instruction.component_blocks.push({ child_index: instruction.children.length - 1, component, component_tag, props_id: node.dataset.blockPropsId, slot_id: node.dataset.slotId });
@@ -541,7 +539,7 @@ export async function sfc(url, template_processor) {
 
     const response = await fetch(url);
     const text = await response.text();
-    if (!response.ok) throw new Error(text);
+    if (!response.ok) throw new Error(`[Core]: Loading component error! network request not ok.\n\n${text}`);
 
     const response_url = response.url;
     const etag = response.headers.get("etag") || "";
@@ -596,11 +594,7 @@ export async function sfc(url, template_processor) {
  * @param {{ css_scope_id?: string, components_id?: number, include_lifecycle: boolean, include_context : boolean }} options
  */
 export function create_render_code_string(fragment, options = { include_context : false, include_lifecycle : true }) {
-    if (typeof fragment === "string") {
-        const templateEl = document.createElement("template");
-        templateEl.innerHTML = fragment;
-        fragment = templateEl.content;
-    }
+    if (typeof fragment === "string") fragment = CORE.html(fragment);
 
     remove_whitespace_nodes(fragment) // this should be executed before processing any template to prevent empty text nodes that are used as anchor points for rendering to be mistakenly removed
 
@@ -676,12 +670,12 @@ ${
                 const props = Object.entries(component?.props || []);
                 return `const $COMPONENT${i} = ${block.component ? `${block.component}` : `$COMPONENTS.${block.component_tag}`};
         const $COMPONENT${i}_PROPS = {${props.map((p) => `get ${p[0]}() { return (${JSON.stringify(p[1])}) }`).join(",") }${ (props.length > 0 && component.dynamic_props.length > 0) ? ',' : ''} ${component.dynamic_props.map((p) => `get ${p.key}(){ return (${p.expr}) }`).join(", ")}};
-        if (!$COMPONENT${i}) throw new Error('component "<${block.component || block.component_tag}>" not found');
+        if (!$COMPONENT${i}) throw new Error('[Core] Loading component error! Component "<${block.component || block.component_tag}>" not found');
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.core_component($CHILD${block.child_index}, $COMPONENT${i}, $COMPONENT${i}_PROPS, () => {${component_slot_fn_code?.replaceAll("\n", "\n\t") || ""}});`}).join("\n\n\t")
 }${
         (instruction.use_directives.length > 0 ? '\n\n\t\t// USE DIRECTIVE\n\t' : '') +
         instruction.use_directives.map((directive, i) => {
-            return `\tif (typeof ${directive.func_name} !== "function") throw new Error('\"${directive.func_name}\" is not a function')
+            return `\tif (typeof ${directive.func_name} !== "function") throw new Error('[Core] Element directive error! \"${directive.func_name}\" is not a function')
         $CORE.on_mount(() => ${directive.func_name}($CHILD${directive.child_index}, (${directive.expr || 'undefined'})))`;
         }).join("\n\t")
 }${
@@ -982,7 +976,7 @@ export function next_tick() {
  * @param {{ track_inner_effect : boolean, is_priority : boolean }} options
  */
 export function effect(fn, options = { track_inner_effect : true, is_priority : false }) {
-    if (typeof fn !== "function") throw new Error("Effect callback is not a function");
+    if (typeof fn !== "function") throw new Error("[Core] Reactivity error! Effect callback is not a function");
 
     let dispose_fn = null;
     let active = true;      // flag to prevent effect re-run if already dispose
