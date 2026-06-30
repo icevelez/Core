@@ -121,15 +121,13 @@ const CORE = {
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
      * @param {Node} anchor
-     * @param {(($:any) => Boolean)[]} condition_fns
-     * @param {(() => (() => void))[]} template_fns
+     * @param {(() => Boolean)[]} condition_fns
+     * @param {(() => (() => void))[]} fns
      */
-    if: function (anchor, condition_fns, template_fns) {
+    if: function (anchor, condition_fns, fns) {
         const fragment = document.createDocumentFragment();
-        const fns = template_fns;
 
-        let prev_fn
-        let dispose;
+        let prev_fn, dispose;
 
         const effect_dispose = CORE.effect(() => {
             let curr_fn;
@@ -1150,16 +1148,14 @@ export function managed_signal(initial_value, actions_or_refine_fn) {
             const result = actions[key](value(), ...args);
             if (!(result instanceof Promise)) return set_value(result);
             set_pending(true);
-            result
-                .then((value) => {
-                    set_value(value);
-                    set_error(null);
-                    set_pending(false);
-                })
-                .catch(error => {
-                    set_error(error);
-                    set_pending(false);
-                });
+            result.then((value) => {
+                set_value(value);
+                set_error(null);
+                set_pending(false);
+            }).catch(error => {
+                set_error(error);
+                set_pending(false);
+            });
         } catch (error) {
             set_error(error);
         }
