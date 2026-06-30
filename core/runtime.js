@@ -148,6 +148,7 @@ const CORE = {
                 CORE.set_param_args(fragment);
                 dispose = curr_fn();
                 anchor.before(fragment);
+                run_deferred_mount_fns();
             } catch (error) {
                 console.trace(error);
             }
@@ -190,6 +191,7 @@ const CORE = {
                     CORE.set_param_args(fragment);
                     else_block_dispose_fn = each_block.else_fn();
                     anchor.before(fragment);
+                    run_deferred_mount_fns();
                     return;
                 }
 
@@ -223,7 +225,10 @@ const CORE = {
                     existing_dispose_blocks[i]();
                 }
 
-                if (new_each_dispose_blocks.length > 0) anchor.before(fragment);
+                if (new_each_dispose_blocks.length > 0) {
+                    anchor.before(fragment);
+                    run_deferred_mount_fns();
+                }
 
                 existing_dispose_blocks = new_each_dispose_blocks;
             } catch (error) {
@@ -276,12 +281,14 @@ const CORE = {
                 CORE.set_param_args(fragment);
                 dispose_fn = then_fn(promise);
                 anchor.before(fragment);
+                run_deferred_mount_fns();
                 return dispose_fn;
             }
 
             CORE.set_param_args(fragment);
             pending_dispose_fn = pending_fn();
             anchor.before(fragment);
+            run_deferred_mount_fns();
 
             promise.then(([value, error]) => {
                 if (last_id !== curr_id) return;
@@ -298,6 +305,7 @@ const CORE = {
                 pending_dispose_fn();
                 pending_dispose_fn = null;
                 anchor.before(fragment);
+                run_deferred_mount_fns();
             })
 
             return dispose;
@@ -688,7 +696,7 @@ ${
 
         $ANCHOR.append($TEMPLATE);
 
-        ($CONTEXT[$CORE.IS_MOUNTED]) ? $CORE.run_mount_fns($CONTEXT) : $CORE.defer_mounting($CONTEXT);
+        $CORE.defer_mounting($CONTEXT);
         $CORE.set_new_context($OLD_CONTEXT);
 
         // CLEAN UP
@@ -851,11 +859,10 @@ export function mount(app, target) {
 
     const dispose = app();
 
-    for (const context of deferred_mount_fns) run_mount_fns(context);
-    deferred_mount_fns.length = 0;
-    run_mount_fns(context);
-
     context[CORE.IS_MOUNTED] = true;
+
+    run_deferred_mount_fns();
+    run_mount_fns(context);
 
     return () => {
         run_destroy_fns(context);
@@ -864,6 +871,12 @@ export function mount(app, target) {
 }
 
 const deferred_mount_fns = [];
+
+function run_deferred_mount_fns() {
+    if (!current_context[CORE.IS_MOUNTED]) return;
+    for (const context of deferred_mount_fns) run_mount_fns(context);
+    deferred_mount_fns.length = 0;
+}
 
 function defer_mounting(context) {
     deferred_mount_fns.push(context);
