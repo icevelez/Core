@@ -20,7 +20,7 @@ export function component(url) {
                 stack.push({ name: openName, start: match.index, end: null, outer: '', placeholder: '' });
             } else if (closeName) {
                 const last = stack.pop();
-                if (!last || last.name !== closeName) throw new Error(`Unbalanced block: expected {{/${last?.name}}} but found {{/${closeName}}}`);
+                if (!last || last.name !== closeName) throw new Error(`[Core-Handlebar] Compilation error! Unbalanced block: expected {{/${last?.name}}} but found {{/${closeName}}}`);
                 last.end = match.index + full.length;
                 last.outer = source.slice(last.start, last.end);
                 blocks.push(last);
@@ -66,7 +66,7 @@ const parse = {
     if: function (block) {
         RE.if.lastIndex = RE.else.lastIndex = 0;
         const match = RE.if.exec(block);
-        if (!match) throw new Error("parsing error on \"if\" block");
+        if (!match) throw new Error("[Core-Handlebar] Compilation error! No matching \"if\" block");
 
         const [, firstCond, firstBody] = match, exprs = [], fns = [];
         let lastCond = firstCond, lastIndex = 0, m;
@@ -97,7 +97,7 @@ const parse = {
     each: function (block) {
         RE.each.lastIndex = 0;
         const match = RE.each.exec(block);
-        if (!match) throw new Error("parsing error on \"each\" block")
+        if (!match) throw new Error("[Core-Handlebar] Compilation error! No matching \"each\" block");
 
         const [, expr, blockVar, indexVar, content] = match,
             parts = content.split(/{{:empty}}/),
@@ -115,7 +115,7 @@ const parse = {
     await: function (block) {
         RE.await.lastIndex = RE.then.lastIndex = RE.catch.lastIndex = RE.blockSplit.lastIndex = 0;
         const match = RE.await.exec(block);
-        if (!match) throw new Error("parsing error on \"await\" block");
+        if (!match) throw new Error("[Core-Handlebar] Compilation error! No matching \"await\" block");
 
         const [, promiseExpr, content] = match,
             thenMatch = RE.then.exec(content),
