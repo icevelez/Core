@@ -563,7 +563,7 @@ export async function sfc(url, template_processor) {
     const components_id = `component-${make_id(6)}`;
     const css_scope_id = `core-${make_id(6).toLowerCase()}`;
 
-    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { css_scope_id, components_id, include_context : Boolean(script), include_lifecycle : Boolean(script) });
+    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { css_scope_id, components_id });
     const user_code = extract_default_function(code);
     code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE - CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
@@ -597,9 +597,9 @@ export async function sfc(url, template_processor) {
 /**
  *
  * @param {DocumentFragment} fragment
- * @param {{ css_scope_id?: string, components_id?: number, include_lifecycle: boolean, include_context : boolean }} options
+ * @param {{ css_scope_id?: string, components_id?: number }} options
  */
-export function create_render_code_string(fragment, options = { include_context : false, include_lifecycle : true }) {
+export function create_render_code_string(fragment, options) {
     if (typeof fragment === "string") fragment = CORE.html(fragment);
 
     remove_whitespace_nodes(fragment) // this should be executed before processing any template to prevent empty text nodes that are used as anchor points for rendering to be mistakenly removed
@@ -626,7 +626,7 @@ ${
         const $CONTEXT = $CORE.create_new_context();
         $CONTEXT[$CORE.MOUNT_FNS] = [];
         $CONTEXT[$CORE.DESTROY_FNS] = [];
-            const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);
+        const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);
 ${
         (instruction.children.length > 0 ? '\t\t// DECLARE NODES WITH BINDINGS\n\t' : '') +
             instruction.children.map((child, i) => {
