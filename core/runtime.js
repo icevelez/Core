@@ -18,7 +18,9 @@ const CORE = {
     show_anchor_blocks : true, // flag to use comment node instead of text node as anchor, good for debugging
     PRP_STATE: Symbol(),
     MOUNT_FNS: Symbol(),
+    IS_MOUNTED: Symbol(),
     DESTROY_FNS: Symbol(),
+    defer_mounting,
     on_mount,
     run_mount_fns,
     run_destroy_fns,
@@ -85,29 +87,17 @@ const CORE = {
      */
     delegate: function (event_name, node, func) {
         if (typeof func !== "function") throw new Error("func is not a function");
-        let event_node_weakmap = CORE.delegated_events.get(event_name);
+        let has_event = CORE.delegated_events.get(event_name);
 
-        if (!event_node_weakmap) {
-            event_node_weakmap = new WeakMap();
-            const funcs = new Set();
-            funcs.add(func);
-
-            event_node_weakmap.set(node, funcs);
-            CORE.delegated_events.set(event_name, event_node_weakmap);
-
-            window.addEventListener(event_name, (e) => match_delegated_node(event_node_weakmap, e, e.target));
-
-            return () => funcs.delete(func);
+        if (!has_event) {
+            CORE.delegated_events.set(event_name, true);
+            window.addEventListener(event_name, (e) => match_delegated_node(e, e.target, event_name));
         }
 
-        let funcs = event_node_weakmap.get(node);
-        if (!funcs) {
-            funcs = new Set();
-            event_node_weakmap.set(node, funcs);
-        }
+        if (!node.__events) node.__events = [];
+        if (!node.__events[event_name]) node.__events[event_name] = [];
 
-        funcs.add(func);
-        return () => funcs.delete(func);
+        node.__events[event_name].push(func);
     },
     /**
      * @param {Node} startNode
@@ -347,13 +337,13 @@ const CORE = {
 }
 
 /**
- * @param {WeakMap<Node, Set<Function>>} map
  * @param {Event} event
  * @param {Node} target
+ * @param {string} event_name,
  */
-function match_delegated_node(map, event, target) {
-    const fns = map.get(target);
-    if (!fns) return target.parentNode ? match_delegated_node(map, event, target.parentNode) : undefined;
+function match_delegated_node(event, target, event_name) {
+    const fns = target.__events ? target.__events[event_name] : null;
+    if (!fns) return target.parentNode ? match_delegated_node(event, target.parentNode, event_name) : undefined;
     for (const fn of fns) fn(event);
 }
 
@@ -575,7 +565,7 @@ export async function sfc(url, template_processor) {
 
     const has_styles = render_code_string.includes("$STYLE.innerHTML");
     const template_initialization_code = `
-    export const $COMPONENT_ID = "${components_id}";
+    export const $COMPONENT_ID = "${components_id}"; // used by Core Assist
     const $CORE = window.__core__;\n\t${
     CORE.fragment_cache.map((frag, i) => {
         if (has_styles) inject_scope_id_to_children(frag, css_scope_id);
@@ -632,11 +622,12 @@ ${
         style_sheet ? `\n\t\tconst $STYLE = document.createElement("style");
         $STYLE.innerHTML = \`${style_sheet}\`;
         document.head.append($STYLE);\n` : ''
-}${
-    options?.include_context ? `
+}
         const $CONTEXT = $CORE.create_new_context();
-        const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);\n\n` : '\n'
-}${
+        $CONTEXT[$CORE.MOUNT_FNS] = [];
+        $CONTEXT[$CORE.DESTROY_FNS] = [];
+            const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);
+${
         (instruction.children.length > 0 ? '\t\t// DECLARE NODES WITH BINDINGS\n\t' : '') +
             instruction.children.map((child, i) => {
                 return `\tconst $CHILD${i} = $TEMPLATE${resolve_child_node(child)};`;
@@ -660,7 +651,7 @@ ${
 }${
         (instruction.events.length > 0 ? '\n\n\t\t// EVENT DELEGATION\n\t\t' : '') +
         instruction.events.map((event) => {
-            return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
+            return `$CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
         }).join("\n\t\t")
 }${
         (instruction.blocks.length > 0 ? '\n\n\t\t// IF/EACH/AWAIT BLOCKS\n\t\t' : '') +
@@ -704,20 +695,17 @@ ${
 }
 
         $ANCHOR.append($TEMPLATE);
-${
-        options?.include_lifecycle ? `\n\t\tqueueMicrotask(() => $CORE.run_mount_fns())\n` : ''
-}${
-        options?.include_context ? `\n\t\t// RESET CONTEXT\n\t\t$CORE.set_new_context($OLD_CONTEXT);\n` : ''
-}
+
+        ($CONTEXT[$CORE.IS_MOUNTED]) ? $CORE.run_mount_fns($CONTEXT) : $CORE.defer_mounting($CONTEXT);
+        $CORE.set_new_context($OLD_CONTEXT);
+
         // CLEAN UP
-        return () => {${
-            options?.include_lifecycle ? `\n\t\t\t$CORE.run_destroy_fns();\n` : ''
-        }
+        return () => {
+            $CORE.run_destroy_fns($CONTEXT);
+
             for (const fn of $DISPOSE_FNS) fn();
             $DISPOSE_FNS.length = 0;
-        ${
-            options?.include_context ? `\n\t\t\t// RESET CONTEXT\n\t\t\t$CORE.set_new_context($OLD_CONTEXT);\n` : ''
-        }
+
             const parent_node = $NODE_START.parentNode;
             if (parent_node) $CORE.remove_nodes(parent_node, $NODE_START, $NODE_END);${
             style_sheet ? `\n\t\t\tdocument.head.removeChild($STYLE);` : '' }
@@ -869,24 +857,41 @@ export function mount(app, target) {
     set_new_context(context);
     CORE.set_param_args(typeof target === "string" ? document.querySelector(target) : target);
 
-    return app();
+    const dispose = app();
+
+    for (const context of deferred_mount_fns) run_mount_fns(context);
+    deferred_mount_fns.length = 0;
+    run_mount_fns(context);
+
+    context[CORE.IS_MOUNTED] = true;
+
+    return () => {
+        run_destroy_fns(context);
+        dispose()
+    };
 }
 
-function run_mount_fns() {
-    for (const fn of current_context[CORE.MOUNT_FNS]) {
+const deferred_mount_fns = [];
+
+function defer_mounting(context) {
+    deferred_mount_fns.push(context);
+}
+
+function run_mount_fns(context) {
+    for (const fn of context[CORE.MOUNT_FNS]) {
         try {
             const destroy_fn = fn();
-            if (typeof destroy_fn === "function") current_context[CORE.DESTROY_FNS].push(destroy_fn);
+            if (typeof destroy_fn === "function") context[CORE.DESTROY_FNS].push(destroy_fn);
         } catch (error) {
             console.error(error);
         }
     }
 
-    current_context[CORE.MOUNT_FNS].length = 0;
+    context[CORE.MOUNT_FNS].length = 0;
 }
 
-function run_destroy_fns() {
-    for (const fn of current_context[CORE.DESTROY_FNS]) {
+function run_destroy_fns(context) {
+    for (const fn of context[CORE.DESTROY_FNS]) {
         try {
             fn();
         } catch (error) {
@@ -894,7 +899,7 @@ function run_destroy_fns() {
         }
     }
 
-    current_context[CORE.DESTROY_FNS].length = 0;
+    context[CORE.DESTROY_FNS].length = 0;
 }
 
 export function on_mount(fn) {
