@@ -919,11 +919,19 @@ let effect_stack = [];
 /** @type {Function | null} */
 let current_effect = null;
 
-/** @type {Set<Function>} */
-const effect_queue = new Set();
-/** @type {Set<Function>} */
-const prio_effect_queue = new Set();
+let dep_map = new WeakSet();
+/** @type {Function[]} */
+const prio_effect_queue = [];
+/** @type {Function[]} */
+const effect_queue = [];
+/** @type {Function[]} */
+const ticks = [];
+
 let is_flushing = false;
+
+export function next_tick() {
+    return new Promise((resolve) => ticks.push(resolve));
+}
 
 /**
  * @param {Set<Function>} dep
@@ -938,7 +946,9 @@ function track(dep) {
  * @param {Set<Function>} dep
  */
 function trigger(dep) {
-    for (const effect_fn of dep) (effect_fn.is_priority ? prio_effect_queue : effect_queue).add(effect_fn);
+    if (dep_map.has(dep)) return;
+    for (const effect_fn of dep) (effect_fn.is_priority ? prio_effect_queue : effect_queue).push(effect_fn);
+    dep_map.add(dep);
 
     if (is_flushing) return;
     is_flushing = true;
@@ -951,10 +961,9 @@ function trigger(dep) {
         } catch (error) {
             console.error("effect microtask execution error\n", effect_queue, error)
         } finally {
-            prio_effect_queue.clear();
-            effect_queue.clear();
-            ticks.length = 0;
+            prio_effect_queue.length = effect_queue.length = ticks.length = 0;
             is_flushing = false;
+            dep_map = new WeakSet();
         }
     });
 }
@@ -968,13 +977,6 @@ function dispose_deps(effect_fn) {
 
     for (const fn of effect_fn.children) fn();
     effect_fn.children.length = 0;
-}
-
-/** @type {Function[]} */
-const ticks = [];
-
-export function next_tick() {
-    return new Promise((resolve) => ticks.push(resolve));
 }
 
 /**
