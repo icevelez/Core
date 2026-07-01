@@ -1,5 +1,5 @@
 <script>
-    import { signal } from "core";
+    import { signal, on_mount } from "core";
 
     let rowId = 1;
 
@@ -167,12 +167,12 @@
             setData(tmp);
         };
 
-        function onMount() {
+        on_mount(() => {
             console.log("Benchmark on mount", document.body);
             return () => {
                 console.log("Benchmark on mount dispose")
             }
-        }
+        })
     }
 </script>
 

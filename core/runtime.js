@@ -31,8 +31,8 @@ const CORE = {
     fragment_cache: [],
     /** @type {Map<string, BlockCache[]>} */
     block_cache: new Map(),
-    /** @type {Map<string, Boolean>} */
-    delegated_events: new Set(),
+    /** @type {{ [key:string] : Boolean }} */
+    delegated_events: Object.create(null),
     /**
      * Converts string to Document Fragment
      * @param {string} html_string
@@ -64,7 +64,7 @@ const CORE = {
      * @param {string} property
      */
     set_attr: function (node, value, property) {
-        if (!node.__cacheAttr) node.__cacheAttr = {};
+        if (!node.__cacheAttr) node.__cacheAttr = Object.create(null);
         if (node.__cacheAttr[property] === value) return;
         node.__cacheAttr[property] = value;
 
@@ -88,9 +88,9 @@ const CORE = {
     delegate: function (event_name, node, func) {
         if (typeof func !== "function") throw new Error("[Core] Event delegation error! function is not a function");
 
-        if (!CORE.delegated_events.has(event_name)) {
-            CORE.delegated_events.add(event_name);
+        if (!CORE.delegated_events[event_name]) {
             window.addEventListener(event_name, (e) => match_delegated_node(e, e.target, event_name));
+            CORE.delegated_events[event_name] = true;
         }
 
         if (!node.__events) node.__events = { [event_name] : [] };
@@ -332,10 +332,9 @@ const CORE = {
         return dispose;
     },
     resolve_components: async function (component_promises, id) {
-        const keys = Object.keys(component_promises || {});
-        const arr = await Promise.all(keys.map((k) => component_promises[k]));
-        const components = {};
-        for (let i = 0; i < keys.length; i++) components[keys[i]] = arr[i];
+        const keys = Object.keys(component_promises || Object.create(null));
+        const components = Object.create(component_promises);
+        await Promise.all(keys.map(async (k) => { components[k] = await component_promises[k]; }));
         if (keys.length > 0) add_block_to_cache(id, components);
     }
 }
@@ -486,7 +485,7 @@ function remove_whitespace_nodes(root) {
 */
 export function process_components(template, template_processor) {
     return template.replace(/<([A-Z][A-Za-z0-9]*)\s*((?:[^>"']|"[^"]*"|'[^']*')*?)\s*(\/?)>(?:([\s\S]*?)<\/\1>)?/g, (match, tag, attrStr, _, inner_content) => {
-        const props = {}, dynamic_props = [], props_id = `props-${make_id(8)}`, slot_id = `slot-${make_id(8)}`;
+        const props = Object.create(null), dynamic_props = [], props_id = `props-${make_id(8)}`, slot_id = `slot-${make_id(8)}`;
 
         attrStr.replace(/([\w:@-]+)(?:\s*=\s*"([^"]*)")?/g, (_, key, value) => {
             if (key.startsWith(":")) {
