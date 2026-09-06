@@ -144,6 +144,7 @@ export const CORE = Object.freeze({
             try {
                 CORE.set_param_args(fragment);
                 dispose = curr_fn();
+                if (dispose instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
                 anchor.before(fragment);
                 run_deferred_mount_fns();
             } catch (error) {
@@ -186,7 +187,8 @@ export const CORE = Object.freeze({
 
                     if (!else_fn || else_block_dispose_fn) return;
                     CORE.set_param_args(fragment);
-                    else_block_dispose_fn = each_block.else_fn();
+                    else_block_dispose_fn = else_fn();
+                    if (else_block_dispose_fn instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
                     anchor.before(fragment);
                     run_deferred_mount_fns();
                     return;
@@ -214,6 +216,7 @@ export const CORE = Object.freeze({
                     CORE.set_param_args(fragment);
                     const index = i; // snapshot of i
                     const dispose = then_fn(is_array ? (() => arr[index]) : is_map ? (() => arr.get(ar)) : () => ar, index);
+                    if (dispose instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
                     new_each_dispose_blocks.push(dispose);
                 }
 
@@ -331,6 +334,7 @@ export const CORE = Object.freeze({
         const old_context = set_new_context(context);
 
         const dispose = (fn.default ? fn.default : fn)(props);
+        if (dispose instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
         anchor.before(fragment);
 
         run_deferred_mount_fns();
