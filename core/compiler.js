@@ -532,8 +532,7 @@ ${
             for (const fn of $DISPOSE_FNS) { if (typeof fn === "function") fn() };
             $DISPOSE_FNS.length = 0;
             ` : ''}
-            const parent_node = $NODE_START.parentNode;
-            if (parent_node) $CORE.remove_nodes(parent_node, $NODE_START, $NODE_END);${style_sheet ? `\n\t\t\tdocument.head.removeChild($STYLE);` : '' }
+            $CORE.remove_nodes($NODE_START, $NODE_END);${style_sheet ? `\n\t\t\tdocument.head.removeChild($STYLE);` : '' }
         }\n\t`;
 
         return render_code_string.replace("const $DISPOSE_FNS = [];", dispose_fn_i >= 0 ? `const $DISPOSE_FNS = new Array(${++dispose_fn_i});` : "");

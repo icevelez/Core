@@ -98,8 +98,9 @@ export const CORE = Object.freeze({
      * @param {Node} startNode
      * @param {Node} endNode
      */
-    remove_nodes: function (parentNode, startNode, endNode) {
-        if (!parentNode) throw new Error("[Core runtime]: Clean up error! Parent node not found");
+    remove_nodes: function (startNode, endNode) {
+        const parentNode = startNode?.parentElement;
+        if (!parentNode) return;
 
         if (startNode === endNode) {
             parentNode.removeChild(startNode);
@@ -177,10 +178,7 @@ export const CORE = Object.freeze({
                 const arr = arr_fn();
 
                 if (!arr || arr?.length <= 0) {
-                    if (existing_dispose_blocks.length > 0) {
-                        const parent_node = anchor.parentNode;
-                        CORE.remove_nodes(parent_node, start_node.nextSibling, anchor.previousSibling);
-                    }
+                    if (existing_dispose_blocks.length > 0) CORE.remove_nodes(start_node.nextSibling, anchor.previousSibling);
 
                     for (const dispose of existing_dispose_blocks) dispose();
                     existing_dispose_blocks.length = 0;
