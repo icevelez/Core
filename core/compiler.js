@@ -331,12 +331,12 @@ async function compiler(text, source_url, template_processor) {
     base.innerHTML = text;
 
     const scriptEl = base.content.querySelector("script");
-    const script = scriptEl?.innerHTML || "";
     const template = text.replace(scriptEl?.outerHTML, "");
     const href = source_url.substring(0, source_url.lastIndexOf("/") + 1);
+    const export_default = "export default function";
 
-    let code = script;
-    code = `//# sourceURL=${source_url.split("/").at(-1)}${code || "\n\texport default function() {}"}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
+    let code = scriptEl?.innerHTML || "";
+    code = `//# sourceURL=${source_url.split("/").at(-1)}${code?.includes(export_default) ? code : (code+`\n\t${export_default}() {}`)}`.replaceAll(/from\s+["']([^"']+\.js)["']/g, (expr, match) => match.startsWith("http") || match.startsWith("data:") ? expr : expr.replace(match, `${href}${match}`));
 
     const user_code = extract_default_function(code);
     const imports = collect_imports(code.replace(user_code, ""));
