@@ -13,7 +13,7 @@ let arg_global = null;
 
 export const CORE = Object.freeze({
     version: "0.6.0",
-    show_anchor_blocks : true, // flag to use comment node instead of text node as anchor, good for debugging
+    show_anchor_blocks : false, // flag to use comment node instead of text node as anchor, good for debugging
     PRP_STATE: Symbol(),
     MOUNT_FNS: Symbol(),
     IS_MOUNTED: Symbol(),
