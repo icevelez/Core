@@ -484,7 +484,7 @@ ${
             const each_fn = (fn) => `(${block_data.key}${block_data.index_key ? `, ${block_data.index_key}` : ''}) => {${fn.replaceAll("\n", "\n\t")}}`;
             const await_fn = (fn, key = "") => fn ? `(${key}) => {${fn.replaceAll("\n", "\n\t")}}` : 'null';
             if (block.type === "if") {
-                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.if($CHILD${block.child_index}, [\n\t\t\t${block_data.exprs.map((expr) => `(() => ${expr})`).join(",\n\t\t\t")}\n\t\t], [\n\t\t${block_data.fns.map((fn) => `() => {${fn.replaceAll("\n", "\n\t")}}`).join(",\n\t\t")}\n\t\t]);`
+                return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.if($CHILD${block.child_index}, () => {\n\t${block_data.exprs.map((expr, i) => `if (${expr}) return () => {${block_data.fns[i]}}`).join("\n\t\t\t")}\n\treturn null;\n\t});`
             } else if (block.type === "each") {
                 return `$DISPOSE_FNS[${++dispose_fn_i}] = $CORE.each($CHILD${block.child_index}, (() => ${block_data.expr}), ${each_fn(block_data.fn)}${block_data.else_fn ? `, ${each_fn(block_data.else_fn)}` : ''})`;
             } else if (block.type === "await") {

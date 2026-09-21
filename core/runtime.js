@@ -122,20 +122,13 @@ export const CORE = Object.freeze({
      * @param {(() => Boolean)[]} condition_fns
      * @param {(() => (() => void))[]} fns
      */
-    if: function (anchor, condition_fns, fns) {
+    if: function (anchor, select_condition) {
         const fragment = document.createDocumentFragment();
 
         let prev_fn, dispose;
 
         const effect_dispose = CORE.effect(() => {
-            let curr_fn;
-
-            for (let i = 0; i < condition_fns.length; i++) {
-                if (!condition_fns[i]()) continue;
-                curr_fn = fns[i];
-                break;
-            }
-
+            const curr_fn = select_condition();
             if (prev_fn === curr_fn) return;
             prev_fn = curr_fn;
 
@@ -169,6 +162,7 @@ export const CORE = Object.freeze({
         let else_block_dispose_fn = null;
         let existing_dispose_blocks = [];
 
+        const arr_weakmap = new WeakMap();
         const fragment = document.createDocumentFragment();
         const start_node = CORE.show_anchor_blocks ? new Comment("each-block-start") : new Text(" ");
         anchor.before(start_node);
@@ -176,8 +170,12 @@ export const CORE = Object.freeze({
         const effect_dispose = CORE.effect(() => {
             try {
                 const arr = arr_fn();
+                const block_length = arr?.length || arr?.size || 0;
 
-                if (!arr || arr?.length <= 0) {
+                let arr_signal = arr_weakmap.get(arr);
+                if (!arr_signal) arr_weakmap.set(arr, (arr_signal = []));
+
+                if (!arr || block_length <= 0) {
                     if (existing_dispose_blocks.length > 0) CORE.remove_nodes(start_node.nextSibling, anchor.previousSibling);
 
                     for (const dispose of existing_dispose_blocks) dispose();
@@ -197,38 +195,27 @@ export const CORE = Object.freeze({
                     else_block_dispose_fn = null;
                 }
 
-                const new_each_dispose_blocks = [];
-
                 const is_array = Array.isArray(arr);
                 const is_map = arr instanceof Map;
+                const existing_dispose_block_length = existing_dispose_blocks.length;
 
-                let i = -1;
-                for (const ar of arr) {
-                    i++;
-
-                    if (existing_dispose_blocks[i]) {
-                        new_each_dispose_blocks.push(existing_dispose_blocks[i]);
-                        continue;
-                    }
-
+                for (let i = existing_dispose_block_length; i < block_length; i++) {
                     CORE.set_param_args(fragment);
                     const index = i; // snapshot of i
-                    const dispose = then_fn(is_array ? (() => arr[index]) : is_map ? (() => arr.get(ar)) : () => ar, index);
+                    const dispose = then_fn(arr_signal[i] || (arr_signal[i] = is_array ? (() => arr[index]) : is_map ? (() => arr.get(ar)) : () => ar), index);
                     if (dispose instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
-                    new_each_dispose_blocks.push(dispose);
+                    existing_dispose_blocks.push(dispose);
                 }
 
                 // TEAR DOWN BLOCKS THAT ARE BEYOND THE NEW ARRAY LENGTH
-                for (let i = new_each_dispose_blocks.length; i < existing_dispose_blocks.length; i++) {
-                    existing_dispose_blocks[i]();
-                }
+                for (let i = block_length; i < existing_dispose_block_length; i++) existing_dispose_blocks[i]();
 
-                if (new_each_dispose_blocks.length > 0) {
+                if (block_length > existing_dispose_block_length) {
                     anchor.before(fragment);
                     run_deferred_mount_fns();
                 }
 
-                existing_dispose_blocks = new_each_dispose_blocks;
+                existing_dispose_blocks.length = block_length;
             } catch (error) {
                 console.error("[Core runtime]: {{#each}} block render error\n", error);
             }
@@ -270,9 +257,10 @@ export const CORE = Object.freeze({
         const fragment = document.createDocumentFragment();
         const context = create_new_context();
 
+        let id = 0;
         const effect_dispose = CORE.effect(() => {
-            const promise = new Promise(async (resolve) => { try { resolve([await await_fn(), null]) } catch (error) { resolve([null, error]); } });
-            const curr_id = Math.random();
+            const promise = Promise.resolve().then(await_fn).then(value => [value, null], error => [null, error]);
+            const curr_id = ++id;
             last_id = curr_id;
 
             if (!(promise instanceof Promise)) {
@@ -331,7 +319,7 @@ export const CORE = Object.freeze({
         context[CORE.DESTROY_FNS] = [];
         const old_context = set_new_context(context);
 
-        const dispose = (fn.default ? fn.default : fn)(props);
+        const dispose = (fn.default || fn)(props);
         if (dispose instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
         anchor.before(fragment);
 

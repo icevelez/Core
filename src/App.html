@@ -1,5 +1,5 @@
 <script>
-    import { signal, memo, effect, bind } from "core";
+    import { signal, memo, effect, bind, component } from "core";
     import { Router } from "core-router";
 
     import PropSlotExample from "./PropSlotExample.html";
@@ -30,16 +30,16 @@
     }
 </script>
 
-<select on:change="(e) => setChange(e.target.value)">
+<!--<select on:change="(e) => setChange(e.target.value)">
     <option value="">N/A</option>
     <option value="props">Props Example</option>
     <option value="example">Example</option>
     <option value="todo">Todo</option>
     <option value="benchmark">Benchmark</option>
 </select>
-<CoreComponent :default="changeMe[change()] || NotFound"/>
+<CoreComponent :default="changeMe[change()] || NotFound"/>-->
 
-<!--{{#if Router.match("/benchmark").is_match}}
+{{#if Router.match("/benchmark").is_match}}
     {{#await component("./src/Benchmark.html")}}
         <h1>Loading Benchmark</h1>
     {{:then Benchmark}}
@@ -64,7 +64,7 @@
             <h1>Hidden From Parent</h1>
         {{/if}}
     </PropSlotExample>
-{{/if}}-->
+{{/if}}
 
 <style scoped>
     h1 {
