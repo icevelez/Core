@@ -349,7 +349,7 @@ async function compiler(text, source_url, template_processor) {
     }
 
     const css_scope_id = `core-${make_id(6).toLowerCase()}`;
-    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { css_scope_id });
+    const render_code_string = create_render_code_string(template_processor(process_components(template, template_processor)), { css_scope_id, is_component : true });
     code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE - CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
     const has_styles = render_code_string.includes("$STYLE.innerHTML");
@@ -425,7 +425,7 @@ function collect_imports(source) {
 /**
  *
  * @param {DocumentFragment} fragment
- * @param {{ css_scope_id?: string }} options
+ * @param {{ css_scope_id?: string, is_component?: boolean }} options
  */
 function create_render_code_string(fragment, options) {
     if (typeof fragment === "string") fragment = CORE.html(fragment);
@@ -438,6 +438,7 @@ function create_render_code_string(fragment, options) {
     const instruction = discover_node_instruction(fragment);
     fragment_cache.push(fragment);
 
+    const use_context = instruction.use_directives.length > 0 || options?.is_component;
     const render_code_string = `
         const $CORE = window.__core__;
         const [$ANCHOR, $SLOT_FN] = $CORE.get_param_args();
@@ -449,12 +450,13 @@ ${
         style_sheet ? `\n\t\tconst $STYLE = document.createElement("style");
         $STYLE.innerHTML = \`${style_sheet}\`;
         document.head.append($STYLE);\n` : ''
-}
+}${
+        use_context ? `
         const $CONTEXT = $CORE.create_new_context();
         $CONTEXT[$CORE.MOUNT_FNS] = [];
         $CONTEXT[$CORE.DESTROY_FNS] = [];
-        const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);
-${
+        const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);` : ``
+}${
         (instruction.children.length > 0 ? '\t\t// DECLARE NODES WITH BINDINGS\n\t' : '') +
             instruction.children.map((child, i) => {
                 return `\tconst $CHILD${i} = $TEMPLATE${resolve_child_node(child)};`;
@@ -522,10 +524,11 @@ ${
 }
 
         $ANCHOR.append($TEMPLATE);
-
-        $CORE.defer_mounting($CONTEXT);
-        $CORE.set_new_context($OLD_CONTEXT);
-
+${
+        use_context ? `
+        $CORE.run_mount_fns($CONTEXT);
+        $CORE.set_new_context($OLD_CONTEXT);` : ``
+}
         // CLEAN UP
         return () => {
             $CORE.run_destroy_fns($CONTEXT);

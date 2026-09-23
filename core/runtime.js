@@ -10,13 +10,11 @@ export const CORE = Object.freeze({
     MOUNT_FNS: Symbol(),
     IS_MOUNTED: Symbol(),
     DESTROY_FNS: Symbol(),
-    defer_mounting,
     on_mount,
     run_mount_fns,
     run_destroy_fns,
     effect,
     set_new_context,
-    run_deferred_mount_fns,
     create_new_context,
     /** @type {{ [key:string] : Boolean }} */
     delegated_events: Object.create(null),
@@ -132,7 +130,6 @@ export const CORE = Object.freeze({
                 dispose = curr_fn();
                 if (dispose instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
                 anchor.before(fragment);
-                run_deferred_mount_fns();
             } catch (error) {
                 console.error("[Core runtime]: {{#if}} block render error\n", error);
             }
@@ -178,7 +175,6 @@ export const CORE = Object.freeze({
                     else_block_dispose_fn = else_fn();
                     if (else_block_dispose_fn instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
                     anchor.before(fragment);
-                    run_deferred_mount_fns();
                     return;
                 }
 
@@ -202,10 +198,7 @@ export const CORE = Object.freeze({
                 // TEAR DOWN BLOCKS THAT ARE BEYOND THE NEW ARRAY LENGTH
                 for (let i = block_length; i < existing_dispose_block_length; i++) existing_dispose_blocks[i]();
 
-                if (block_length > existing_dispose_block_length) {
-                    anchor.before(fragment);
-                    run_deferred_mount_fns();
-                }
+                if (block_length > existing_dispose_block_length) anchor.before(fragment);
 
                 existing_dispose_blocks.length = block_length;
             } catch (error) {
@@ -259,14 +252,12 @@ export const CORE = Object.freeze({
                 CORE.set_param_args(fragment);
                 dispose_fn = then_fn(promise);
                 anchor.before(fragment);
-                run_deferred_mount_fns();
                 return dispose_fn;
             }
 
             CORE.set_param_args(fragment);
             pending_dispose_fn = pending_fn();
             anchor.before(fragment);
-            run_deferred_mount_fns();
 
             promise.then(([value, error]) => {
                 if (last_id !== curr_id) return;
@@ -283,7 +274,6 @@ export const CORE = Object.freeze({
                 pending_dispose_fn();
                 pending_dispose_fn = null;
                 anchor.before(fragment);
-                run_deferred_mount_fns();
             })
 
             return dispose;
@@ -315,7 +305,6 @@ export const CORE = Object.freeze({
         if (dispose instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
         anchor.before(fragment);
 
-        run_deferred_mount_fns();
         run_mount_fns(context);
         set_new_context(old_context);
 
@@ -476,7 +465,6 @@ export function mount(app, target, should_replace) {
 const deferred_mount_fns = [];
 
 function run_deferred_mount_fns() {
-    if (!current_context[CORE.IS_MOUNTED]) return; // NO NEED TO RUN DEFER IF NOT YET MOUNTED
     for (const context of deferred_mount_fns) run_mount_fns(context);
     deferred_mount_fns.length = 0;
 }
@@ -484,14 +472,12 @@ function run_deferred_mount_fns() {
 /**
  * @param {Context} context
  */
-function defer_mounting(context) {
-    deferred_mount_fns.push(context);
-}
-
-/**
- * @param {Context} context
- */
 function run_mount_fns(context) {
+    if (!current_context[CORE.IS_MOUNTED]) {
+        deferred_mount_fns.push(context);
+        return;
+    }
+
     for (const fn of context[CORE.MOUNT_FNS]) {
         try {
             const destroy_fn = fn();
