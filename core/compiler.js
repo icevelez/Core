@@ -2,6 +2,13 @@ import { CORE } from "core";
 
 /** @typedef {{ children : number[][], text_funcs : { child_index : number, expr : string }[], attr_funcs : { child_index : number, expr : string, property : string }[], bindings : { child_index : number, var : string, property : string, event_name : string }[], events : { child_index : number, event_name : string, expr : string }[], blocks : { child_index : number, type : string, id : string }[], core_component_blocks : { child_index : number, component_name : string, props_id : string }, component_blocks : { child_index : number, component_tag : string, props_id : string }, use_directives : { child_index : number, func_name : string, expr : string }[] slot_child_index : number  }} Instruction */
 
+/** @typedef {{ fns : string[], exprs : string[] }} IfBlock */
+/** @typedef {{ fn : string, empty_fn : string, expr : string, key : string, keys?: string[], index_key?:string }} EachBlock */
+/** @typedef {{ pending_fn:string, then_fn?: string, then_key?:string, catch_fn?: string, catch_key?:string, expr : string }} AwaitBlock */
+/** @typedef {{ props : Record<string, string>, dynamic_props : { key:string, expr : string }[] }} PropsBlock */
+
+/** @typedef {IfBlock | EachBlock | AwaitBlock | PropsBlock} BlockCache */
+
 /** @type {Map<string, BlockCache[]>} */
 const block_cache = new Map();
 
@@ -10,44 +17,38 @@ const block_cache = new Map();
  * @param {string} source_url
  * @returns {Promise<Function>}
  */
-export const component = (text, source_url) => compiler(text, source_url, template_parser);
+export const component = (text, source_url) => compiler(text, source_url, handlebar_parser);
 
 /**
  * @param {string} source
  */
-function template_parser(source) {
-    const blockPattern = /{{#(await|if|each)(.*?)}}|{{\/(await|if|each)}}/gs, stack = [], blocks = [];
-    let match;
+function handlebar_parser(source) {
+    const re = /{{#(await|if|each)(.*?)}}|{{\/(await|if|each)}}/gs, stack = [];
+    let output = "", cursor = 0, match;
 
-    while ((match = blockPattern.exec(source))) {
-        const [full, openName, , closeName] = match;
-        if (openName) {
-            stack.push({ name: openName, start: match.index, end: null, outer: '', placeholder: '' });
-        } else if (closeName) {
-            const last = stack.pop();
-            if (!last || last.name !== closeName) throw new Error(`[Core compiler]: Unbalanced block: expected {{/${last?.name}}} but found {{/${closeName}}}`);
-            last.end = match.index + full.length;
-            last.outer = source.slice(last.start, last.end);
-            blocks.push(last);
+    while ((match = re.exec(source = source.replace(/<!--[\s\S]*?-->/g, "")))) {
+        const [full, open, , close] = match, target = stack.at(-1);
+        target ? (target.content += source.slice(cursor, match.index)) : (output += source.slice(cursor, match.index));
+
+        if (open) {
+            stack.push({ name: open, content: full });
+        } else {
+            const block = stack.pop();
+            if (!block || block.name !== close) throw new Error(`[Core compiler]: Unbalanced block: expected {{/${block?.name}}} but found {{/${close}}}`);
+
+            const id = `${block.name}-${make_id(6)}`;
+            const placeholder = `<template data-block="${block.name}" data-block-id="${id}"></template>`;
+            const target = stack.at(-1);
+
+            block_cache.set(id, parse[block.name](block.content = (block.content + full)));
+            target ? (target.content += placeholder) : (output += placeholder);
         }
+
+        cursor = match.index + full.length;
     }
 
-    blocks.sort((a, b) => b.start - a.start);
-
-    let html = source;
-    for (let i = 0; i < blocks.length; i++) {
-        const block = blocks[i], block_id = `${block.name}-${make_id(6)}`;
-        for (let j = 0; j < i; j++) {
-            if (!block.outer.includes(blocks[j].outer)) continue;
-            block.outer = block.outer.replace(blocks[j].outer, blocks[j].placeholder);
-            block.end -= blocks[j].outer.length - blocks[j].placeholder.length; // modify block.end when replacing
-        }
-        block.placeholder = `<template data-block="${block.name}" data-block-id="${block_id}"></template>`;
-        html = html.slice(0, block.start) + block.placeholder + html.slice(block.end);
-        block_cache.set(block_id, parse[block.name](block.outer));
-    }
-
-    return html;
+    if (stack.length) throw new Error(`[Core compiler]: Unbalanced block: expected {{/${stack.at(-1).name}}}`);
+    return output + source.slice(cursor);
 }
 
 const RE = {

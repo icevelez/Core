@@ -1,13 +1,5 @@
 /** @typedef {(props:Record<string, any>) => (() => void)} CoreComponent the function that wraps both the data and render function */
 
-/** @typedef {{ fns : string[], exprs : string[] }} IfBlock */
-/** @typedef {{ fn : string, empty_fn : string, expr : string, key : string, keys?: string[], index_key?:string }} EachBlock */
-/** @typedef {{ pending_fn:string, then_fn?: string, then_key?:string, catch_fn?: string, catch_key?:string, expr : string }} AwaitBlock */
-/** @typedef {{ props : Record<string, string>, dynamic_props : { key:string, expr : string }[] }} PropsBlock */
-/** @typedef {Record<string, CoreComponent>} ComponentBlock */
-
-/** @typedef {IfBlock | EachBlock | AwaitBlock | PropsBlock | CoreComponent} BlockCache */
-
 /** @type {any | null} */
 let arg_global = null;
 
