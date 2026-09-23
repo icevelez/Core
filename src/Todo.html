@@ -12,6 +12,9 @@
 
         on_mount(() => {
             console.log("WELCOME TODO");
+            return () => {
+                console.log("WELCOME TODO DISPOSAL")
+            }
         })
     }
 </script>

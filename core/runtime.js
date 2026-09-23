@@ -476,6 +476,7 @@ export function mount(app, target, should_replace) {
 const deferred_mount_fns = [];
 
 function run_deferred_mount_fns() {
+    if (!current_context[CORE.IS_MOUNTED]) return; // NO NEED TO RUN DEFER IF NOT YET MOUNTED
     for (const context of deferred_mount_fns) run_mount_fns(context);
     deferred_mount_fns.length = 0;
 }
@@ -491,7 +492,6 @@ function defer_mounting(context) {
  * @param {Context} context
  */
 function run_mount_fns(context) {
-    if (!current_context[CORE.IS_MOUNTED]) return;
     for (const fn of context[CORE.MOUNT_FNS]) {
         try {
             const destroy_fn = fn();

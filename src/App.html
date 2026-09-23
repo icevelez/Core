@@ -18,6 +18,9 @@
 
         const myaction = (node, arg) => {
             console.log("MyAction:", node, arg);
+            return () => {
+                console.log("MyAction disposal");
+            }
         }
 
         const [change, setChange] = signal("");
