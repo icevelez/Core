@@ -338,7 +338,7 @@ export function component(url) {
     if (component_cache.has(full_url)) return component_cache.get(full_url);
 
     const promise = new Promise(async (resolve, reject) => {
-        const response = await fetch(url, { headers : { "x-core" : "core-component" }}); // the header is a tag for Core Server to look to indicate this resource can be compiled
+        const response = await fetch(url, { headers : { "x-core" : CORE.version }}); // tag for Core-server
         if (!response.ok) return reject(await response.text());
 
         const content_type = response.headers.get("content-type") || "";
