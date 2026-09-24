@@ -353,13 +353,16 @@ async function compiler(text, source_url, template_processor) {
     code = code.replace(user_code, `${user_code}\n\t\t/* END OF USER CODE - CODE BELOW IS INJECTED BY THE RUNTIME COMPILER - IT REPRESENTS YOUR TEMPLATE */\n\t\t${render_code_string}`);
 
     const has_styles = render_code_string.includes("$STYLE.innerHTML");
+    const templates_cache = new Map();
     const template_initialization_code = `
     const $CORE = window.__core__;\n\t${
     fragment_cache.map((frag, i) => {
         if (has_styles) inject_scope_id_to_children(frag, css_scope_id);
         const template = document.createElement("template");
         template.content.append(frag);
-        return `const $FRAGMENT_CACHE_${i} = $CORE.html(${JSON.stringify(template.innerHTML)})`;
+        let template_reuse = templates_cache.get(template.innerHTML)
+        if (!template_reuse) templates_cache.set(template.innerHTML, `$FRAGMENT_CACHE_${i}`);
+        return `const $FRAGMENT_CACHE_${i} = ${template_reuse || `$CORE.html(${JSON.stringify(template.innerHTML)})`};`;
     }).join("\n\t")}`;
 
     code = `${code}${template_initialization_code}`;
