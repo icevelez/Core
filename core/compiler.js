@@ -441,7 +441,6 @@ function create_render_code_string(fragment, options) {
     const instruction = discover_node_instruction(fragment);
     fragment_cache.push(fragment);
 
-    const use_context = instruction.use_directives.length > 0 || options?.is_component;
     const render_code_string = `
         const $CORE = window.__core__;
         const [$ANCHOR, $SLOT_FN] = $CORE.get_param_args();
@@ -453,12 +452,6 @@ ${
         style_sheet ? `\n\t\tconst $STYLE = document.createElement("style");
         $STYLE.innerHTML = \`${style_sheet}\`;
         document.head.append($STYLE);\n` : ''
-}${
-        use_context ? `
-        const $CONTEXT = $CORE.create_new_context();
-        $CONTEXT[$CORE.MOUNT_FNS] = [];
-        $CONTEXT[$CORE.DESTROY_FNS] = [];
-        const $OLD_CONTEXT = $CORE.set_new_context($CONTEXT);` : ``
 }${
         (instruction.children.length > 0 ? '\t\t// DECLARE NODES WITH BINDINGS\n\t' : '') +
             instruction.children.map((child, i) => {
@@ -527,14 +520,9 @@ ${
 }
 
         $ANCHOR.append($TEMPLATE);
-${
-        use_context ? `
-        $CORE.run_mount_fns($CONTEXT);
-        $CORE.set_new_context($OLD_CONTEXT);` : ``
-}
+
         // CLEAN UP
         return () => {
-            $CORE.run_destroy_fns($CONTEXT);
             ${dispose_fn_i >= 0 ? `
             for (const fn of $DISPOSE_FNS) { if (typeof fn === "function") fn() };
             $DISPOSE_FNS.length = 0;

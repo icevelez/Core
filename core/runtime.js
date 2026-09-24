@@ -25,7 +25,7 @@ export const CORE = Object.freeze({
      */
     html: function (html_string) {
         const template = document.createElement("template");
-        template.innerHTML = html_string;
+        (html_string.trim() === "") ? html_string.split(" ").map(() => template.content.appendChild(new Text(" "))) : (template.innerHTML = html_string);
         return template.content;
     },
     /**
