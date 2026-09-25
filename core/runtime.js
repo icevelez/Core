@@ -321,8 +321,8 @@ export const CORE = Object.freeze({
  * @param {string} event_name,
  */
 function match_delegated_node(event, target, event_name) {
-    const fns = target.__events ? target.__events[event_name] : null;
-    if (!fns) return target.parentNode ? match_delegated_node(event, target.parentNode, event_name) : undefined;
+    const fns = target?.__events[event_name] || null, parent = target?.parentNode;
+    if (!fns) return parent ? match_delegated_node(event, parent, event_name) : undefined;
     for (const fn of fns) fn(event);
 }
 
