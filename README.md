@@ -6,7 +6,11 @@ License: MIT
 
 ## How to Use?
 
-Pleaes refer to the `Getting Started.md` file in the documentation folder
+Pleaes refer to the `Getting Started.md` file in the documentation folder 
+
+## Preview Online
+
+Play around with it in [Stackblitz](https://stackblitz.com/edit/stackblitz-starters-qr6uktrw?file=index.html)
 
 ## To Do
 
