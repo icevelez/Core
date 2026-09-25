@@ -84,27 +84,21 @@ export const CORE = Object.freeze({
         node.__events[event_name].push(func);
     },
     /**
-     * @param {Node} parentNode
      * @param {Node} startNode
      * @param {Node} endNode
      */
     remove_nodes: function (startNode, endNode) {
-        const parentNode = startNode?.parentElement;
-        if (!parentNode) return;
-
-        if (startNode === endNode) {
-            parentNode.removeChild(startNode);
-            return;
-        }
+        if (!startNode.parentElement) return;
+        if (startNode === endNode) return startNode.remove();
 
         let node = startNode;
         while (node && node !== endNode) {
             const next = node.nextSibling;
-            parentNode.removeChild(node);
+            node.remove()
             node = next;
         }
 
-        parentNode.removeChild(endNode);
+        endNode.remove();
     },
     /**
      * Returns a function to dispose DOM nodes and reactive bindings
@@ -524,8 +518,6 @@ export function on_destroy(fn) {
 
 /** @typedef {Function & { deps : Set<Effect>[], children : Function[], is_priority:boolean, track_inner_effect:boolean, dispose:() => void }} Effect */
 
-/** @type {Effect[]} */
-let effect_stack = [];
 /** @type {Effect | null} */
 let current_effect = null;
 
@@ -619,7 +611,7 @@ export function effect(fn, options = { track_inner_effect : true, is_priority : 
         dispose();
         dispose_deps(wrapped);
 
-        effect_stack.push(wrapped);
+        const parent_effect = current_effect;
         current_effect = wrapped;
 
         try {
@@ -627,8 +619,7 @@ export function effect(fn, options = { track_inner_effect : true, is_priority : 
         } catch (error) {
             console.error("[Core reactivity]: effect execution error\n", fn, error);
         } finally {
-            effect_stack.pop();
-            current_effect = effect_stack[effect_stack.length - 1] || null;
+            current_effect = parent_effect;
             if (current_effect?.track_inner_effect) current_effect.children.push(wrapped.dispose);
         }
     };
