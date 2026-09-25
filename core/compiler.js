@@ -319,6 +319,8 @@ function extract_default_function(source) {
     return null;
 }
 
+const is_in_webcontainer = window.location.origin.includes("webcontainer.io");
+
 /** @type {DocumentFragment[]} */
 const fragment_cache = [];
 
@@ -331,7 +333,7 @@ async function compiler(text, source_url, template_processor) {
     const base = document.createElement("template");
     base.innerHTML = text;
 
-    const scriptEl = base.content.querySelector("script");
+    const scriptEl = is_in_webcontainer ? Array.from(base.content.querySelectorAll("script"))[2] : base.content.querySelector("script");
     const template = text.replace(scriptEl?.outerHTML, "");
     const href = source_url.substring(0, source_url.lastIndexOf("/") + 1);
     const export_default = "export default function";
