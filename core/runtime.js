@@ -604,10 +604,10 @@ export function effect(fn, options = { track_inner_effect : true, is_priority : 
             wrapped.dispose_fn = (typeof dispose_fn === "function") ? dispose_fn : null;
         } catch (error) {
             console.error("[Core reactivity]: effect execution error\n", fn, error);
-        } finally {
-            current_effect = parent_effect;
-            if (current_effect?.track_inner_effect) current_effect.children.push(wrapped.dispose);
         }
+
+        current_effect = parent_effect;
+        if (current_effect?.track_inner_effect) current_effect.children.push(wrapped.dispose);
     };
 
     wrapped.active = true;
@@ -806,12 +806,12 @@ const handler = {
             }
 
             if (!Array.isArray(target)) return value;
+            const is_mutating = array_mutation_keys.has(key);
 
             // Trigger update when target is an array and is being mutated
             return (...args) => {
                 const result = target[key](...args);
-
-                if (!array_mutation_keys.has(key)) return result;
+                if (!is_mutating) return result;
 
                 trigger(dep);
                 if (container.parent_dep) trigger(container.parent_dep);
@@ -839,22 +839,19 @@ const handler = {
         return child_container.proxy;
     },
     set(target, key, value) {
-        const container = object_to_container.get(target);
-        const dep = container.deps[key] || (container.deps[key] = new Set());
-
         if (target[key] === value) return true;
 
-        target[key] = value;
+        const container = object_to_container.get(target), dep = container.deps[key] || (container.deps[key] = new Set());
 
+        target[key] = value;
         trigger(dep);
 
         return true;
     },
     deleteProperty(target, key) {
-        const container = object_to_container.get(target);
-        delete target[key];
+        const container = object_to_container.get(target), dep = container.deps[key] || (container.deps[key] = new Set());
 
-        const dep = container.deps[key] || (container.deps[key] = new Set());
+        delete target[key];
         trigger(dep);
 
         return true;
