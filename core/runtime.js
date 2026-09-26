@@ -664,17 +664,13 @@ export function signal(initial_value) {
             const is_proxy = new_value[IS_PROXY];
             const real_value = is_proxy ? new_value[CONTAINER].value : new_value;
 
-            value = null;
+            !container ? (container = create_container(real_value, dep)) : (container.value = real_value);
 
-            if (!container) {
-                container = create_container(real_value, dep);
-            } else {
-                container.value = real_value;
-            }
+            value = null;
             proxy = create_proxy(container);
 
             trigger(dep);
-            if (container) for (const key in container.deps) trigger(container.deps[key]);
+            for (const key in container.deps) trigger(container.deps[key]);
 
             return;
         }
@@ -682,7 +678,6 @@ export function signal(initial_value) {
         if (value === new_value) return;
 
         value = new_value;
-        if (container) container.parent_dep = null;
         container = proxy = null;
 
         trigger(dep);
