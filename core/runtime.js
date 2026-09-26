@@ -108,6 +108,7 @@ export const CORE = Object.freeze({
      */
     if: function (anchor, select_condition) {
         const fragment = document.createDocumentFragment();
+        const context = current_context;
 
         let prev_fn, dispose;
 
@@ -124,6 +125,7 @@ export const CORE = Object.freeze({
                 dispose = curr_fn();
                 if (dispose instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
                 anchor.before(fragment);
+                run_mount_fns(context);
             } catch (error) {
                 console.error("[Core runtime]: {{#if}} block render error\n", error);
             }
@@ -145,6 +147,7 @@ export const CORE = Object.freeze({
         let else_block_dispose_fn = null;
         let existing_dispose_blocks = [];
 
+        const context = current_context;
         const arr_weakmap = new WeakMap();
         const fragment = document.createDocumentFragment();
         const start_node = CORE.show_anchor_blocks ? new Comment("each-block-start") : new Text(" ");
@@ -169,6 +172,7 @@ export const CORE = Object.freeze({
                     else_block_dispose_fn = else_fn();
                     if (else_block_dispose_fn instanceof Promise) throw new Error("Core component returned a promise. Core components are synchronous");
                     anchor.before(fragment);
+                    run_mount_fns(context);
                     return;
                 }
 
@@ -192,7 +196,10 @@ export const CORE = Object.freeze({
                 // TEAR DOWN BLOCKS THAT ARE BEYOND THE NEW ARRAY LENGTH
                 for (let i = block_length; i < existing_dispose_block_length; i++) existing_dispose_blocks[i]();
 
-                if (block_length > existing_dispose_block_length) anchor.before(fragment);
+                if (block_length > existing_dispose_block_length) {
+                    anchor.before(fragment);
+                    run_mount_fns(context);
+                }
 
                 existing_dispose_blocks.length = block_length;
             } catch (error) {
@@ -234,7 +241,7 @@ export const CORE = Object.freeze({
         }
 
         const fragment = document.createDocumentFragment();
-        const context = create_new_context();
+        const context = current_context;
 
         let id = 0;
         const effect_dispose = CORE.effect(() => {
@@ -315,7 +322,7 @@ export const CORE = Object.freeze({
  * @param {string} event_name,
  */
 function match_delegated_node(event, target, event_name) {
-    const fns = target?.__events[event_name] || null, parent = target?.parentNode;
+    const events = target.__events, fns = events ? events[event_name] : null, parent = target?.parentNode;
     if (!fns) return parent ? match_delegated_node(event, parent, event_name) : undefined;
     for (const fn of fns) fn(event);
 }
