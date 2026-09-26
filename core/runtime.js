@@ -516,7 +516,7 @@ export function on_destroy(fn) {
 
 // REACTIVITY
 
-/** @typedef {Function & { deps : Set<Effect>[], children : Function[], is_priority:boolean, track_inner_effect:boolean, dispose:() => void }} Effect */
+/** @typedef {Function & { deps : Set<Effect>[], children : Function[], is_priority:boolean, track_inner_effect:boolean, dispose:() => void, dispose_fn:() => void }} Effect */
 
 /** @type {Effect | null} */
 let current_effect = null;
@@ -575,6 +575,8 @@ function trigger(dep) {
  * @param {Effect} effect_fn
  */
 function dispose_deps(effect_fn) {
+    if (effect_fn.dispose_fn) effect_fn.dispose_fn();
+
     for (const dep of effect_fn.deps) dep.delete(effect_fn);
     effect_fn.deps.length = 0;
 
@@ -590,32 +592,16 @@ function dispose_deps(effect_fn) {
 export function effect(fn, options = { track_inner_effect : true, is_priority : false }) {
     if (typeof fn !== "function") throw new Error("[Core reactivity]: effect callback is not a function");
 
-    /** @type {Function | null} */
-    let dispose_fn = null;
-    let active = true;      // flag to prevent effect re-run if already dispose
-
-    const dispose = () => {
-        if (typeof dispose_fn !== "function") return
-        try {
-            dispose_fn();
-        } catch (error) {
-            console.error("[Core reactivity]: effect cleanup error\n", fn, error);
-        } finally {
-            dispose_fn = null;
-        }
-    }
-
     const wrapped = () => {
-        if (!active) return;
-
-        dispose();
-        dispose_deps(wrapped);
+        if (!wrapped.active) return;
 
         const parent_effect = current_effect;
-        current_effect = wrapped;
 
         try {
-            dispose_fn = fn();
+            dispose_deps(wrapped);
+            current_effect = wrapped;
+            const dispose_fn = fn();
+            wrapped.dispose_fn = (typeof dispose_fn === "function") ? dispose_fn : null;
         } catch (error) {
             console.error("[Core reactivity]: effect execution error\n", fn, error);
         } finally {
@@ -624,18 +610,19 @@ export function effect(fn, options = { track_inner_effect : true, is_priority : 
         }
     };
 
+    wrapped.active = true;
     wrapped.is_priority = Boolean(options?.is_priority);
     wrapped.track_inner_effect = Boolean(options?.track_inner_effect);
-
+    /** @type {Function | null} */
+    wrapped.dispose_fn = null;
     /** @type {Set<Effect>[]} */
     wrapped.deps = [];
     /** @type {Function[]} */
     wrapped.children = [];
 
     wrapped.dispose = () => {
-        if (!active) return;
-        active = false;
-        dispose();
+        if (!wrapped.active) return;
+        wrapped.active = false;
         dispose_deps(wrapped);
     };
 
