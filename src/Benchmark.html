@@ -232,7 +232,7 @@
 				<tr :class="selected() === item().id ? 'danger' : ''">
 				    <td class="col-md-1">{{item().id}}</td>
 					<td class="col-md-4">
-						<a on:click="() => selected.set(item().id)">{{ i+1 }} {{item().label}}</a>
+						<a on:click="() => setSelected(item().id)">{{ i+1 }} {{item().label}}</a>
 					</td>
 					<td class="col-md-1">
 					    <a on:click="() => remove(data()[i])">
