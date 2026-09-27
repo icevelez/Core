@@ -520,7 +520,6 @@ export function on_destroy(fn) {
     current_context[CORE.DESTROY_FNS].push(fn);
 }
 
-
 // REACTIVITY
 
 /** @typedef {Function & { deps : Set<Effect>[], children : Function[], is_priority:boolean, track_inner_effect:boolean, dispose:() => void, dispose_fn:() => void }} Effect */
@@ -641,6 +640,7 @@ export function effect(fn, options = { track_inner_effect : true, is_priority : 
 /**
  * @template {any} T
  * @param {T} initial_value
+ * @returns {[() => T, (new_value:T) => void]}
  */
 export function signal(initial_value) {
     let value = initial_value;
@@ -661,9 +661,6 @@ export function signal(initial_value) {
         return container ? proxy : value;
     }
 
-    /**
-     * @param {T} new_value
-     */
     const set = (new_value) => {
         if (typeof new_value === "function") new_value = new_value(value);
 
@@ -746,11 +743,11 @@ export function managed_signal(initial_value, actions_or_refine_fn) {
         return [value, error, pending, set_refine_value];
     }
 
+    if (!is_plain_object(actions_or_refine_fn)) throw new Error("Managed Signals Error! actions is not an object");
     const actions = actions_or_refine_fn;
-    const action_keys = Object.keys(actions);
     const defined_actions = Object.create(actions);
 
-    for (const key of action_keys) defined_actions[key] = function (...args) {
+    for (const key of Object.keys(actions)) defined_actions[key] = function (...args) {
         try {
             const result = actions[key](value(), ...args);
             if (!(result instanceof Promise)) return set_value(result);
@@ -776,7 +773,7 @@ const array_mutation_keys = new Set(["push","pop","shift","unshift","splice","so
 const IS_PROXY = Symbol("proxy");
 const CONTAINER = Symbol("container");
 
-const is_plain_object = (/** @type {any} */ v) => v && typeof v === 'object' && ((Object.getPrototypeOf(v) === null || Object.getPrototypeOf(v) === Object.prototype) || Array.isArray(v));
+const is_plain_object = (v) => Boolean(v && typeof v === 'object' && ((Object.getPrototypeOf(v) === null || Object.getPrototypeOf(v) === Object.prototype) || Array.isArray(v)));
 
 /** @typedef {ReturnType<typeof create_container>} Container */
 
