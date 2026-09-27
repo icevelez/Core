@@ -44,26 +44,18 @@ export const CORE = Object.freeze({
     set_param_args: function (...args) {
         arg_global = args;
     },
+    attr_fn_cache: Object.create(null),
     /**
-     * @param {Node} node
-     * @param {any} value
      * @param {string} property
      */
-    set_attr: function (node, value, property) {
-        if (!node.__cacheAttr) node.__cacheAttr = Object.create(null);
-        if (node.__cacheAttr[property] === value) return;
-        node.__cacheAttr[property] = value;
-
-        if (property === "value") {
-            node.value = value;
-        } else if (property === "checked") {
-            node.checked = value === "true" || value === true;
-            node.setAttribute(property, node.checked ? "" : value);
-        } else if (value === "false" || !value) {
-            node.removeAttribute(property);
-        } else {
-            node.setAttribute(property, value === "true" ? "" : value);
-        }
+    attr_fn: function (property) {
+        return new Function('node', 'value', `
+            ${property === "value" ? '' : `const is_false = value === "false" || !value; if (is_false) return node.removeAttribute("${property}");`}
+            ${property === "checked" ? `value = value === "true" || value === true;` : ''}
+            if (node.__cache${property} === value) return;
+            node.__cache${property} ${property === "value" ? '= node.value' : ''} = value;
+            ${property === "value" ? '' : `node.setAttribute("${property}", ${property === "checked" ? `node.checked ? ""` : 'value === "true" ? ""'} : value);`}
+        `)
     },
     /**
      * @param {string} event_name

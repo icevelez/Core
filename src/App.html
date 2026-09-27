@@ -1,13 +1,13 @@
 <script>
     import { signal, memo, effect, bind, component } from "core";
-    import { Router } from "core-router";
+    // import { Router } from "core-router";
 
-    import PropSlotExample from "./PropSlotExample.html";
-    import Todo from "./Todo.html";
-    import Example from "./Example.html";
+    // import PropSlotExample from "./PropSlotExample.html";
+    // import Todo from "./Todo.html";
+    // import Example from "./Example.html";
     // import Empty from "./Empty.html";
     // import NotFound from "./NotFound.html";
-    // import Benchmark from "./Benchmark.html";
+    import Benchmark from "./Benchmark.html";
 
     export default function() {
 
@@ -23,13 +23,13 @@
             }
         }
 
-        const [change, setChange] = signal("");
-        const changeMe = {
-            "props" : PropSlotExample,
-            "example" : Example,
-            "todo" : Todo,
-            // "benchmark" : Benchmark,
-        }
+        // const [change, setChange] = signal("");
+        // const changeMe = {
+        //     "props" : PropSlotExample,
+        //     "example" : Example,
+        //     "todo" : Todo,
+        //     "benchmark" : Benchmark,
+        // }
     }
 </script>
 
@@ -42,7 +42,9 @@
 </select>
 <CoreComponent :default="changeMe[change()] || NotFound"/>-->
 
-{{#if Router.match("/benchmark").is_match}}
+<Benchmark/>
+
+<!--{{#if Router.match("/benchmark").is_match}}
     {{#await component("./src/Benchmark.html")}}
         <h1>Loading Benchmark</h1>
     {{:then Benchmark}}
@@ -85,4 +87,4 @@
             color: red !important;
         }
     }
-</style>
+</style>-->

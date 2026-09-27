@@ -469,8 +469,8 @@ ${
             ${instruction.text_funcs.map((func) => {
                 return `$CORE.set_text($CHILD${func.child_index}, ${func.expr});`
             }).join("\n\t\t\t")}${(instruction.attr_funcs.length > 0 ? "\n\t\t\t" : "") +
-            instruction.attr_funcs.map((func, i) => {
-                return `$CORE.set_attr($CHILD${func.child_index}, ${func.expr}, "${func.property}");`
+            instruction.attr_funcs.map((func) => {
+                return `$CORE.attr_fn_cache.${func.property} || ($CORE.attr_fn_cache.${func.property} = $CORE.attr_fn("${func.property}"))($CHILD${func.child_index}, ${func.expr});`
             }).join("\n\t\t\t")}
         })` : ''
 }${
