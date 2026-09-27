@@ -796,8 +796,9 @@ const handler = {
                 const result = target[key](...args);
                 if (!is_mutating) return result;
 
-                trigger(dep);
+                // trigger(dep);
                 if (container.parent_dep) trigger(container.parent_dep);
+                for (const key in container.deps) trigger(container.deps[key]);
 
                 return result;
             }
