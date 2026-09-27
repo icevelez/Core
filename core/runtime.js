@@ -28,14 +28,6 @@ export const CORE = Object.freeze({
         (html_string.trim() === "") ? html_string.split(" ").map(() => template.content.appendChild(new Text(" "))) : (template.innerHTML = html_string);
         return template.content;
     },
-    /**
-     * @param {Node} node
-     * @param {string} text
-     */
-    set_text: function (node, text) {
-        if (node.__cacheText === text) return;
-        node.__cacheText = node.textContent = text;
-    },
     get_param_args: function () {
         const args = arg_global;
         arg_global = null;
@@ -50,11 +42,11 @@ export const CORE = Object.freeze({
      */
     attr_fn: function (property) {
         return new Function('node', 'value', `
-            ${property === "value" ? '' : `const is_false = value === "false" || !value; if (is_false) return node.removeAttribute("${property}");`}
+            ${property === "value" || property === "text" ? '' : `if (value === "false" || !value) return node.removeAttribute("${property}");`}
             ${property === "checked" ? `value = value === "true" || value === true;` : ''}
-            if (node.__cache${property} === value) return;
-            node.__cache${property} ${property === "value" ? '= node.value' : ''} = value;
-            ${property === "value" ? '' : `node.setAttribute("${property}", ${property === "checked" ? `node.checked ? ""` : 'value === "true" ? ""'} : value);`}
+            if (node.__cache_${property} === value) return;
+            node.__cache_${property} ${property === "value" ? '= node.value' : property === "text" ? '= node.textContent' : ''} = value;
+            ${property === "value" || property === "text" ? '' : `node.setAttribute("${property}", ${property === "checked" ? `node.checked ? ""` : 'value === "true" ? ""'} : value);`}
         `)
     },
     /**
