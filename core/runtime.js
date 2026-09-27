@@ -10,6 +10,7 @@ export const CORE = Object.freeze({
     MOUNT_FNS: Symbol(),
     IS_MOUNTED: Symbol(),
     DESTROY_FNS: Symbol(),
+    component,
     on_mount,
     run_mount_fns,
     run_destroy_fns,
@@ -18,7 +19,8 @@ export const CORE = Object.freeze({
     create_new_context,
     /** @type {{ [key:string] : Boolean }} */
     delegated_events: Object.create(null),
-    component,
+    /** @type {{ [key:string] : Function | undefined }} */
+    attr_fn_cache: Object.create(null),
     /**
      * Converts string to Document Fragment
      * @param {string} html_string
@@ -36,7 +38,6 @@ export const CORE = Object.freeze({
     set_param_args: function (...args) {
         arg_global = args;
     },
-    attr_fn_cache: Object.create(null),
     /**
      * @param {string} property
      */
@@ -57,15 +58,19 @@ export const CORE = Object.freeze({
      */
     delegate: function (event_name, node, func) {
         if (typeof func !== "function") throw new Error("[Core runtime]: Event delegation error! function is not a function");
-
-        if (!CORE.delegated_events[event_name]) {
-            window.addEventListener(event_name, (e) => match_delegated_node(e, e.target, event_name));
-            CORE.delegated_events[event_name] = true;
-        }
-
         if (!node.__events) node.__events = { [event_name] : [] };
         if (!node.__events[event_name]) node.__events[event_name] = [];
         node.__events[event_name].push(func);
+    },
+    /**
+     * @param {Event} event
+     * @param {Node} target
+     * @param {string} event_name,
+     */
+    match_delegated_node: function (event, target, event_name) {
+        const events = target.__events, fns = events ? events[event_name] : null, parent = target?.parentNode;
+        if (!fns) return parent ? CORE.match_delegated_node(event, parent, event_name) : undefined;
+        for (const fn of fns) fn(event);
     },
     /**
      * @param {Node} startNode
@@ -299,17 +304,6 @@ export const CORE = Object.freeze({
         };
     },
 })
-
-/**
- * @param {Event} event
- * @param {Node} target
- * @param {string} event_name,
- */
-function match_delegated_node(event, target, event_name) {
-    const events = target.__events, fns = events ? events[event_name] : null, parent = target?.parentNode;
-    if (!fns) return parent ? match_delegated_node(event, parent, event_name) : undefined;
-    for (const fn of fns) fn(event);
-}
 
 /** @type {Map<string, (Promise<Function> | Function)>} */
 const component_cache = new Map();

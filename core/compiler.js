@@ -467,15 +467,21 @@ ${
         // TEXT & ATTRIBUTES
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.effect(() => {
             ${instruction.text_funcs.map((func) => {
-                return `($CORE.attr_fn_cache.text || ($CORE.attr_fn_cache.text = $CORE.attr_fn("text")))($CHILD${func.child_index}, ${func.expr});`
+                if (!CORE.attr_fn_cache.text) CORE.attr_fn_cache.text = CORE.attr_fn("text")
+                return `$CORE.attr_fn_cache.text($CHILD${func.child_index}, ${func.expr});`
             }).join("\n\t\t\t")}${(instruction.attr_funcs.length > 0 ? "\n\t\t\t" : "") +
             instruction.attr_funcs.map((func) => {
-                return `($CORE.attr_fn_cache.${func.property} || ($CORE.attr_fn_cache.${func.property} = $CORE.attr_fn("${func.property}")))($CHILD${func.child_index}, ${func.expr});`
+                if (!CORE.attr_fn_cache[func.property]) CORE.attr_fn_cache[func.property] = CORE.attr_fn(func.property)
+                return `$CORE.attr_fn_cache.${func.property}($CHILD${func.child_index}, ${func.expr});`
             }).join("\n\t\t\t")}
         })` : ''
 }${
         (instruction.events.length > 0 ? '\n\n\t\t// EVENT DELEGATION\n\t\t' : '') +
         instruction.events.map((event) => {
+            if (!CORE.delegated_events[event.event_name]) {
+                window.addEventListener(event.event_name, (e) => CORE.match_delegated_node(e, e.target, event.event_name));
+                CORE.delegated_events[event.event_name] = true;
+            }
             return `$CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
         }).join("\n\t\t")
 }${
