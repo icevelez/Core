@@ -466,23 +466,23 @@ ${
         (instruction.text_funcs.length > 0 || instruction.attr_funcs.length > 0) ? `
         // TEXT & ATTRIBUTES
         $DISPOSE_FNS[${++dispose_fn_i}] = $CORE.effect(() => {
-            ${instruction.text_funcs.map((func) => {
+            ${instruction.text_funcs.map(({ child_index, expr}) => {
                 if (!CORE.attr_fn_cache.text) CORE.attr_fn_cache.text = CORE.attr_fn("text")
-                return `$CORE.attr_fn_cache.text($CHILD${func.child_index}, ${func.expr});`
+                return `$CORE.attr_fn_cache.text($CHILD${child_index}, ${expr});`
             }).join("\n\t\t\t")}${(instruction.attr_funcs.length > 0 ? "\n\t\t\t" : "") +
-            instruction.attr_funcs.map((func) => {
-                if (!CORE.attr_fn_cache[func.property]) CORE.attr_fn_cache[func.property] = CORE.attr_fn(func.property)
-                return `$CORE.attr_fn_cache.${func.property}($CHILD${func.child_index}, ${func.expr});`
+            instruction.attr_funcs.map(({ child_index, expr, property }) => {
+                if (!CORE.attr_fn_cache[property]) CORE.attr_fn_cache[property] = CORE.attr_fn(property)
+                return `$CORE.attr_fn_cache.${property}($CHILD${child_index}, ${expr});`
             }).join("\n\t\t\t")}
         })` : ''
 }${
         (instruction.events.length > 0 ? '\n\n\t\t// EVENT DELEGATION\n\t\t' : '') +
-        instruction.events.map((event) => {
-            if (!CORE.delegated_events[event.event_name]) {
-                window.addEventListener(event.event_name, (e) => CORE.match_delegated_node(e, e.target, event.event_name));
-                CORE.delegated_events[event.event_name] = true;
+        instruction.events.map(({ event_name, child_index, expr }) => {
+            if (!CORE.delegated_events[event_name]) {
+                window.addEventListener(event_name, (e) => CORE.match_delegated_node(e, e.target, event_name));
+                CORE.delegated_events[event_name] = true;
             }
-            return `$CORE.delegate("${event.event_name}", $CHILD${event.child_index}, (${event.expr}));`
+            return `$CORE.delegate("${event_name}", $CHILD${child_index}, (${expr}));`
         }).join("\n\t\t")
 }${
         (instruction.blocks.length > 0 ? '\n\n\t\t// IF/EACH/AWAIT BLOCKS\n\t\t' : '') +
