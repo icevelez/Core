@@ -1,0 +1,163 @@
+Rendering 10,000 Rows
+
+----
+
+UI Framework: Svelte 5.28.1
+Memory usage: 855Kb - 56.6MB
+Event Listeners: 0 - 2
+
+Initial Render
+69.75ms
+72.53ms
+58.45ms
+64.29ms
+61.61ms
+56.84ms
+55.53ms
+52.41ms
+53.62ms
+53.95ms
+55.11ms
+52.90ms
+
+Warm Update
+58.88ms
+58.07ms
+54.53ms
+64.21ms
+57.13ms
+59.07ms
+59.45ms
+62.98ms
+63.05ms
+61.29ms
+58.14ms
+
+Payload
+
+index.html 	20.3Kb
+index.js 	08.9kb
+
+----
+
+UI Framework: Core 0.6.0
+Memory usage: 855Kb - 58.9MB
+Event Listeners: 0 - 1
+
+Initial Render
+87.70ms
+96.32ms
+68.85ms
+82.78ms
+70.30ms
+74.25ms
+74.42ms
+76.72ms
+67.57ms
+74.16ms
+67.63ms
+77.38ms
+
+Warm Update
+66.31ms
+65.31ms
+62.62ms
+62.48ms
+65.05ms
+66.00ms
+68.11ms
+65.41ms
+67.42ms
+64.26ms
+67.29ms
+
+Payload
+
+index.html 	00.7Kb
+runtime.js 	06.5kb
+compiler.js 	07.8kb
+App.html	01.0kb
+Benchmark.html 	21.6Kb
+
+*Combined the total payload from compiler.js + App.html + Benchmark.html as the other framework bundled their Benchmark component and only run their compile at build step
+
+Runtime compilation cost
+
+App.html 		    4.02ms
+Benchmark.html 		6.79ms
+
+----
+
+UI Framework: Vue 3.5.24
+Memory usage: 855Kb - 76.9MB
+Event Listeners: 0 - 60006
+
+Initial Render
+110.63ms
+101.50ms
+98.48ms
+90.20ms
+91.07ms
+81.40ms
+85.92ms
+88.67ms
+88.00ms
+77.76ms
+88.72ms
+73.97ms
+
+Warm Update
+88.18ms
+89.51ms
+91.59ms
+90.85ms
+88.14ms
+91.16ms
+86.90ms
+86.67ms
+85.33ms
+89.35ms
+98.19ms
+
+Payload
+
+index.html 	20.3Kb
+index.js 	26.2kb
+
+----
+
+UI Framework: React 19.1.0
+Memory usage: 855Kb - 90.6MB
+Event Listeners: 0 - 140147
+
+Initial Render
+225.58ms
+249.01ms
+211.50ms
+196.73ms
+202.07ms
+196.84ms
+202.70ms
+194.54ms
+199.52ms
+192.05ms
+205.51ms
+190.97ms
+
+Warm Update
+106.59ms
+112.09ms
+96.48ms
+107.35ms
+98.68ms
+110.34ms
+95.86ms
+111.60ms
+104.02ms
+112.81ms
+97.80ms
+
+Payload
+
+index.html 	20.3Kb
+index.js 	62.9kb
